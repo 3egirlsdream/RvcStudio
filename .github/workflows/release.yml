@@ -1,0 +1,159 @@
+name: Build and publish newer client
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rvc-studio-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-2025
+    timeout-minutes: 360
+    env:
+      GH_TOKEN: ${{ github.token }}
+      UPDATE_SERVICE_URL: ${{ vars.RVC_UPDATE_SERVICE_URL }}
+      HF_RELEASE_REPOSITORY: ${{ vars.HF_RELEASE_REPOSITORY }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Set up Python for Hugging Face publishing
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Compare client and server versions
+        id: version
+        shell: pwsh
+        run: |
+          [xml]$project = Get-Content -LiteralPath 'studio/RvcStudio.App/RvcStudio.App.csproj' -Raw
+          $versionText = @($project.Project.PropertyGroup.Version) |
+            ForEach-Object { [string]$_ } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+            Select-Object -First 1
+          if ($versionText -notmatch '^[0-9]+(\.[0-9]+){1,3}$') {
+            throw "Invalid client version '$versionText'."
+          }
+          $serviceUrl = if ([string]::IsNullOrWhiteSpace($env:UPDATE_SERVICE_URL)) {
+            'https://thankful.top'
+          } else {
+            $env:UPDATE_SERVICE_URL.TrimEnd('/')
+          }
+          $response = Invoke-RestMethod -Uri "$serviceUrl/api/CloudSync/GetVersion?Client=RvcStudio" -TimeoutSec 30
+          if ($response.success -ne $true) {
+            throw 'The update service did not return a successful version response.'
+          }
+          $serverText = if ($null -eq $response.data) { '' } else { [string]$response.data.VERSION }
+          $shouldRelease = [string]::IsNullOrWhiteSpace($serverText) -or
+            ([Version]::Parse($versionText) -gt [Version]::Parse($serverText))
+          "client=$versionText" | Add-Content -LiteralPath $env:GITHUB_OUTPUT
+          "server=$serverText" | Add-Content -LiteralPath $env:GITHUB_OUTPUT
+          "tag=v$versionText" | Add-Content -LiteralPath $env:GITHUB_OUTPUT
+          "should_release=$($shouldRelease.ToString().ToLowerInvariant())" | Add-Content -LiteralPath $env:GITHUB_OUTPUT
+          if (-not $shouldRelease) {
+            Write-Host "Client $versionText is not newer than server $serverText; release build is skipped."
+          }
+
+      - name: Install packaging tools
+        if: steps.version.outputs.should_release == 'true'
+        shell: pwsh
+        run: choco install innosetup 7zip --no-progress -y
+
+      - name: Restore exact CUDA runtime and models
+        if: steps.version.outputs.should_release == 'true'
+        shell: pwsh
+        run: ./packaging/Restore-BuildDependencies.ps1 -Repository '${{ github.repository }}'
+
+      - name: Build and verify installer
+        if: steps.version.outputs.should_release == 'true'
+        shell: pwsh
+        run: |
+          ./packaging/Build-Release.ps1 `
+            -Version '${{ steps.version.outputs.client }}' `
+            -ReleaseNotes 'Automated build from commit ${{ github.sha }}' `
+            -SkipVersionPublish `
+            -AllowNoCudaDevice
+
+      - name: Publish single offline EXE to Hugging Face
+        if: steps.version.outputs.should_release == 'true'
+        id: huggingface
+        shell: pwsh
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_XET_HIGH_PERFORMANCE: '1'
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:HF_RELEASE_REPOSITORY)) {
+            throw 'Repository variable HF_RELEASE_REPOSITORY is required (for example username/RvcStudio).'
+          }
+          if ([string]::IsNullOrWhiteSpace($env:HF_TOKEN)) {
+            throw 'Repository secret HF_TOKEN is required and must have Hugging Face write permission.'
+          }
+          python -m pip install --disable-pip-version-check --upgrade huggingface_hub
+          python packaging/Publish-HuggingFaceRelease.py `
+            --repository $env:HF_RELEASE_REPOSITORY `
+            --version '${{ steps.version.outputs.client }}' `
+            --installer 'packaging/output/installer/RVC-Studio-NVIDIA-Setup.exe' `
+            --github-output $env:GITHUB_OUTPUT
+
+      - name: Publish GitHub Release metadata
+        if: steps.version.outputs.should_release == 'true'
+        shell: pwsh
+        run: |
+          $tag = '${{ steps.version.outputs.tag }}'
+          $downloadUrl = '${{ steps.huggingface.outputs.download_url }}'
+          $checksumLine = Get-Content -LiteralPath 'packaging/output/installer/SHA256SUMS.txt' |
+            Where-Object { $_ -match '\*RVC-Studio-NVIDIA-Setup\.exe$' } |
+            Select-Object -First 1
+          if ([string]::IsNullOrWhiteSpace($checksumLine)) {
+            throw 'The installer checksum is missing from SHA256SUMS.txt.'
+          }
+          $checksum = ($checksumLine -split '\s+')[0]
+          $notes = @"
+          RVC Studio ${{ steps.version.outputs.client }}
+
+          Automated build from commit ${{ github.sha }}.
+
+          [下载单文件完整离线安装包 RVC-Studio-NVIDIA-Setup.exe]($downloadUrl)
+
+          SHA-256: ``$checksum``
+
+          安装包包含程序、Python、PyTorch CUDA 运行环境和默认模型，不需要额外 BIN 分卷。
+          "@
+          gh release view $tag --repo '${{ github.repository }}' *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --repo '${{ github.repository }}' --target '${{ github.sha }}' --title "RVC Studio ${{ steps.version.outputs.client }}" --notes $notes --draft
+          }
+          $assets = @(
+            (Resolve-Path 'packaging/output/installer/README.txt').Path,
+            (Resolve-Path 'packaging/output/installer/SHA256SUMS.txt').Path
+          )
+          gh release upload $tag @assets --repo '${{ github.repository }}' --clobber
+          gh release edit $tag --repo '${{ github.repository }}' --title "RVC Studio ${{ steps.version.outputs.client }}" --notes $notes --draft=false --latest
+
+      - name: Update server version after Release succeeds
+        if: steps.version.outputs.should_release == 'true'
+        shell: pwsh
+        run: |
+          $serviceUrl = if ([string]::IsNullOrWhiteSpace($env:UPDATE_SERVICE_URL)) {
+            'https://thankful.top'
+          } else {
+            $env:UPDATE_SERVICE_URL
+          }
+          ./packaging/Sync-ServerVersion.ps1 `
+            -Version '${{ steps.version.outputs.client }}' `
+            -ReleaseNotes 'RVC Studio ${{ steps.version.outputs.client }} — GitHub Release with Hugging Face offline installer' `
+            -UpdateServiceUrl $serviceUrl `
+            -DownloadUrl 'https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.tag }}'
