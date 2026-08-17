@@ -24,10 +24,9 @@ MinVersion=10.0.19045
 PrivilegesRequired=admin
 Compression=lzma2/ultra64
 SolidCompression=yes
-; GitHub Release assets are limited to 2 GiB each. Inno Setup disk spanning
-; keeps every installer part below that limit while preserving a normal setup.
-DiskSpanning=yes
-DiskSliceSize=1900000000
+; Keep the complete offline package in one executable. The resulting file is
+; hosted on Hugging Face because GitHub Release assets are limited to 2 GiB.
+DiskSpanning=no
 WizardStyle=modern
 LicenseFile=installer-assets\LICENSE
 InfoBeforeFile=INSTALLER-NOTICE.txt

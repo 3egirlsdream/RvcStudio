@@ -1,14 +1,15 @@
 ## RVC Studio NVIDIA 桌面版
 
 本仓库包含 RVC Studio Avalonia 客户端、RVC/Python 推理源码、Windows 安装器
-脚本和可复现发布工作流。普通用户请从
-[GitHub Releases](https://github.com/3egirlsdream/RvcStudio/releases) 下载同一版本的
-`RVC-Studio-NVIDIA-Setup.exe` 与全部 `RVC-Studio-NVIDIA-Setup-*.bin`，放在同一
-目录后运行 EXE，并可用 `SHA256SUMS.txt` 校验下载内容。
+脚本和可复现发布工作流。普通用户请打开
+[GitHub Releases](https://github.com/3egirlsdream/RvcStudio/releases)，使用版本说明中的
+Hugging Face 直链下载单文件 `RVC-Studio-NVIDIA-Setup.exe`，并可用 Release 附带的
+`SHA256SUMS.txt` 校验下载内容。该 EXE 已包含全部离线安装数据，无需额外分卷。
 
 客户端版本定义在 `studio/RvcStudio.App/RvcStudio.App.csproj`。推送到 `main` 后，
 GitHub Actions 仅在该版本高于更新服务器版本时恢复已校验的 CUDA 环境、执行完整
-打包、发布 GitHub Release，并在 Release 成功后更新服务器版本。具体构建说明见
+打包、上传单文件安装器到 Hugging Face、发布 GitHub Release，并在两处发布均成功后
+更新服务器版本。具体构建说明见
 [`packaging/README.md`](packaging/README.md)。
 
 <div align="center">

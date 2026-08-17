@@ -349,6 +349,11 @@ if (-not $SkipInstaller) {
     finally {
         & subst $buildDrive /D
     }
+    $setupExecutables = @(Get-ChildItem -LiteralPath $InstallerRoot -File -Filter 'RVC-Studio-NVIDIA-Setup.exe')
+    $splitPayloads = @(Get-ChildItem -LiteralPath $InstallerRoot -File -Filter 'RVC-Studio-NVIDIA-Setup-*.bin')
+    if ($setupExecutables.Count -ne 1 -or $splitPayloads.Count -ne 0) {
+        throw "Expected one offline setup EXE and no split BIN payloads; found $($setupExecutables.Count) EXE and $($splitPayloads.Count) BIN files."
+    }
     Copy-Item -LiteralPath (Join-Path $PackagingRoot 'DELIVERY-README.txt') -Destination (Join-Path $InstallerRoot 'README.txt')
     $hashLines = Get-ChildItem -LiteralPath $InstallerRoot -File | Sort-Object Name | ForEach-Object {
         $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
@@ -364,5 +369,5 @@ if (-not $SkipInstaller) {
         Publish-VersionIfNewer
     }
     Write-Host "Package completed: $InstallerRoot" -ForegroundColor Green
-    Write-Host 'Download the Setup.exe and every Setup-*.bin part into one directory; README.txt and SHA256SUMS.txt are optional companion files.' -ForegroundColor Yellow
+    Write-Host 'The complete offline package is RVC-Studio-NVIDIA-Setup.exe; README.txt and SHA256SUMS.txt are optional companion files.' -ForegroundColor Yellow
 }

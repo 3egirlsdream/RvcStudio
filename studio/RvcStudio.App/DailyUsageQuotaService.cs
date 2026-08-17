@@ -22,6 +22,7 @@ public sealed class DailyUsageQuotaService : IAsyncDisposable
     public static readonly TimeSpan DailyLimit = TimeSpan.FromHours(1);
 
     private const int StateVersion = 1;
+    private const string DeviceSubject = "device";
     private const string RegistryPath = @"Software\RvcStudio";
     private const string RegistryValueName = "UsageAnchorV1";
     private static readonly TimeSpan PersistInterval = TimeSpan.FromSeconds(1);
@@ -107,6 +108,11 @@ public sealed class DailyUsageQuotaService : IAsyncDisposable
                 _dirty = true;
             }
 
+            // Older builds stored separate quota records for guests and each
+            // signed-in account. Consolidate today's usage into one device
+            // record so signing in or out can never reset the free allowance.
+            MigrateLegacySubjectsToDevice(today);
+
             _initialized = true;
             _activeTimestamp = Stopwatch.GetTimestamp();
             _lastPersistTimestamp = _activeTimestamp;
@@ -119,7 +125,6 @@ public sealed class DailyUsageQuotaService : IAsyncDisposable
     }
 
     public async Task<DailyQuotaSnapshot> UpdateAsync(
-        string subject,
         bool trackUsage,
         CancellationToken cancellationToken = default)
     {
@@ -132,14 +137,17 @@ public sealed class DailyUsageQuotaService : IAsyncDisposable
             var today = TodayText();
             var dayRefreshed = ObserveDateAndClock(today, nowUtc);
             var wasTracking = _activeSubject is not null;
-            var contextChanged = !string.Equals(_activeSubject, trackUsage ? subject : null, StringComparison.Ordinal);
+            var contextChanged = !string.Equals(
+                _activeSubject,
+                trackUsage ? DeviceSubject : null,
+                StringComparison.Ordinal);
 
             SettleActiveUsage(timestamp, today);
 
             var integrityIssue = HasIntegrityIssue(today, nowUtc);
-            var remaining = integrityIssue ? TimeSpan.Zero : GetRemaining(subject, today);
+            var remaining = integrityIssue ? TimeSpan.Zero : GetRemaining(today);
             var exhausted = remaining <= TimeSpan.Zero;
-            _activeSubject = trackUsage && !exhausted ? subject : null;
+            _activeSubject = trackUsage && !exhausted ? DeviceSubject : null;
             _activeTimestamp = timestamp;
 
             await PersistIfNeededAsync(
@@ -155,10 +163,9 @@ public sealed class DailyUsageQuotaService : IAsyncDisposable
     }
 
     public async Task<DailyQuotaSnapshot> StopTrackingAsync(
-        string subject,
         CancellationToken cancellationToken = default)
     {
-        var snapshot = await UpdateAsync(subject, trackUsage: false, cancellationToken);
+        var snapshot = await UpdateAsync(trackUsage: false, cancellationToken);
         await FlushAsync(cancellationToken);
         return snapshot;
     }
@@ -229,10 +236,37 @@ public sealed class DailyUsageQuotaService : IAsyncDisposable
         return nowUtc + ClockRollbackTolerance < _state.LastSeenUtc;
     }
 
-    private TimeSpan GetRemaining(string subject, string today)
+    private TimeSpan GetRemaining(string today)
     {
-        var record = GetOrCreateRecord(subject, today);
+        var record = GetOrCreateRecord(DeviceSubject, today);
         return TimeSpan.FromTicks(Math.Max(0, DailyLimit.Ticks - record.UsedTicks));
+    }
+
+    private void MigrateLegacySubjectsToDevice(string today)
+    {
+        if (_state.Subjects.Count == 1 &&
+            _state.Subjects.TryGetValue(DeviceSubject, out var deviceRecord) &&
+            string.Equals(deviceRecord.Date, today, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        long usedTicks = 0;
+        foreach (var record in _state.Subjects.Values)
+        {
+            if (!string.Equals(record.Date, today, StringComparison.Ordinal)) continue;
+            usedTicks = record.UsedTicks >= DailyLimit.Ticks - usedTicks
+                ? DailyLimit.Ticks
+                : usedTicks + record.UsedTicks;
+        }
+
+        _state.Subjects.Clear();
+        _state.Subjects[DeviceSubject] = new StoredQuotaDay
+        {
+            Date = today,
+            UsedTicks = usedTicks,
+        };
+        _dirty = true;
     }
 
     private StoredQuotaDay GetOrCreateRecord(string subject, string today)

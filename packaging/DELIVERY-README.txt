@@ -1,12 +1,12 @@
 RVC Studio NVIDIA 安装说明
 ========================
 
-1. 请下载同一 GitHub Release 中的 RVC-Studio-NVIDIA-Setup.exe 和全部
-   RVC-Studio-NVIDIA-Setup-*.bin 分卷，并放在同一个目录。README.txt 和
-   SHA256SUMS.txt 是说明及校验文件。
+1. 请从 GitHub Release 说明中的 Hugging Face 下载链接获取单文件
+   RVC-Studio-NVIDIA-Setup.exe。README.txt 和 SHA256SUMS.txt 可从同一
+   GitHub Release 下载，用于查看说明及校验文件完整性。
 
-2. 双击 RVC-Studio-NVIDIA-Setup.exe，并允许管理员权限。安装时不要移动或
-   删除同目录的 .bin 分卷。
+2. 双击 RVC-Studio-NVIDIA-Setup.exe，并允许管理员权限。此 EXE 已包含全部
+   离线安装数据，不需要额外的 .bin 分卷。
 
 3. 安装程序已包含程序、Python 运行环境、PyTorch CUDA 12.8 运行库、默认模型、
    索引文件及标准 VB-CABLE 官方驱动包。目标电脑无需另装 Python 或 CUDA Toolkit。

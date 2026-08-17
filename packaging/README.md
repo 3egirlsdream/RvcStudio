@@ -51,11 +51,13 @@ and bundled voice models, removes invalid/unused CUDA 11 and ONNX remnants,
 verifies CUDA architectures and the default model, writes package/license and
 SHA-256 manifests, then compiles the Inno Setup installer.
 
-Final files are written to `output/installer`. GitHub limits each Release asset
-to 2 GiB, so Inno Setup emits `RVC-Studio-NVIDIA-Setup.exe` plus one or more
-`RVC-Studio-NVIDIA-Setup-*.bin` payload parts. Users must download every setup
-part into one directory. The generated README and SHA-256 list are optional
-companion documents.
+Final files are written to `output/installer`. Inno Setup emits one complete
+offline `RVC-Studio-NVIDIA-Setup.exe`; no external BIN payloads are required.
+Because the full installer is larger than GitHub's 2 GiB per-asset limit,
+GitHub Actions uploads the EXE to the public Hugging Face repository configured
+by the `HF_RELEASE_REPOSITORY` repository variable. The GitHub Release contains
+the generated README, SHA-256 list, and a direct link to that EXE. Configure a
+write-capable Hugging Face token as the `HF_TOKEN` GitHub Actions secret.
 
 ## VB-CABLE
 

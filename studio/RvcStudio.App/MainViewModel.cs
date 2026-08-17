@@ -463,22 +463,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
         }
     }
 
-    private string QuotaSubject
-    {
-        get
-        {
-            var account = Account.Account;
-            if (Account.IsAuthenticated && account is not null)
-            {
-                var id = !string.IsNullOrWhiteSpace(account.Id)
-                    ? account.Id
-                    : !string.IsNullOrWhiteSpace(account.Email) ? account.Email : account.Username;
-                if (!string.IsNullOrWhiteSpace(id)) return "account:" + id.Trim().ToUpperInvariant();
-            }
-            return "guest";
-        }
-    }
-
     private async Task RefreshQuotaAfterAccountChangeAsync()
     {
         try
@@ -498,14 +482,14 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
         try
         {
             var isFree = IsFreeUser;
-            var snapshot = await _usageQuota.UpdateAsync(QuotaSubject, isFree && engineRunning);
+            var snapshot = await _usageQuota.UpdateAsync(isFree && engineRunning);
             ApplyQuotaSnapshot(snapshot, isFree);
 
             if (allowAutomaticStop && isFree && engineRunning && snapshot.Exhausted)
             {
                 var stoppedStatus = await _engine.StopConversionAsync();
                 ApplyStatus(stoppedStatus);
-                snapshot = await _usageQuota.StopTrackingAsync(QuotaSubject);
+                snapshot = await _usageQuota.StopTrackingAsync();
                 ApplyQuotaSnapshot(snapshot, isFree: true);
                 SetReady(
                     "今日免费额度已用完",
@@ -822,7 +806,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
 
         try
         {
-            await _usageQuota.StopTrackingAsync(QuotaSubject);
+            await _usageQuota.StopTrackingAsync();
         }
         catch (Exception exception)
         {
