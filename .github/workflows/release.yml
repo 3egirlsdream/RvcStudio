@@ -28,7 +28,7 @@ jobs:
       - name: Set up .NET
         uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 10.0.303
 
       - name: Set up Python for Hugging Face publishing
         uses: actions/setup-python@v6
