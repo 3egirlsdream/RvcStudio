@@ -1,0 +1,40 @@
+# Python caches and local state
+**/__pycache__/
+*.py[cod]
+/logs/
+/TEMP/
+/.cache/
+
+# Exact, large build inputs are stored in the build-dependencies-v1 Release.
+/runtime/
+/assets/hubert_base/
+/assets/weights/
+/assets/indices/
+/assets/rmvpe/
+/assets/*_weights/
+/assets/pretrained*/
+/assets/embeddings/
+
+# Generated desktop and installer output
+/studio/RvcStudio.App/bin/
+/studio/RvcStudio.App/obj/
+/studio/publish/
+/packaging/output/
+/packaging/installer-assets/
+
+# Local packaged executables and archives
+/RVC Studio.exe
+/RVC Studio.pdb
+/ffmpeg.exe
+/ffprobe.exe
+/*.7z
+/*.7z.*
+
+# IDE and OS files
+.vs/
+.idea/
+.vscode/
+*.user
+*.suo
+Thumbs.db
+.DS_Store

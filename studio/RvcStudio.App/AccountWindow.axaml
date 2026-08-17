@@ -1,0 +1,185 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="RvcStudio.App.AccountWindow"
+        Width="430" Height="620" MinWidth="430" MinHeight="520"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Title="RVC Studio 账号">
+  <Window.Styles>
+    <Style Selector="Border.dialog-card">
+      <Setter Property="Background" Value="#151917" />
+      <Setter Property="BorderBrush" Value="#2D3530" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Padding" Value="16" />
+    </Style>
+    <Style Selector="TextBlock.field-label">
+      <Setter Property="Foreground" Value="#AAB3AC" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="FontSize" Value="10.5" />
+    </Style>
+    <Style Selector="Button.auth-tab">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="Foreground" Value="#879089" />
+    </Style>
+    <Style Selector="Button.auth-tab.active">
+      <Setter Property="Background" Value="#263020" />
+      <Setter Property="BorderBrush" Value="#415238" />
+      <Setter Property="Foreground" Value="#DDF7BC" />
+    </Style>
+    <Style Selector="Button.danger">
+      <Setter Property="Background" Value="#3A201E" />
+      <Setter Property="BorderBrush" Value="#6A3530" />
+      <Setter Property="Foreground" Value="#FFB4AD" />
+    </Style>
+    <Style Selector="HyperlinkButton.agreement-link">
+      <Setter Property="Padding" Value="1,0" />
+      <Setter Property="Margin" Value="0" />
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="FontSize" Value="10.5" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+  </Window.Styles>
+
+  <Grid RowDefinitions="Auto,*" Background="#0E110F">
+    <Border Grid.Row="0" Background="#121613" BorderBrush="#29302B" BorderThickness="0,0,0,1" Padding="18,12">
+      <Grid ColumnDefinitions="46,*" ColumnSpacing="11">
+        <Border Width="42" Height="42" CornerRadius="10" Background="#26351F" BorderBrush="#3E552F" BorderThickness="1">
+          <TextBlock Text="{Binding HeaderGlyph}" Foreground="#B8F36A" FontSize="18" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Border>
+        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+          <TextBlock Classes="eyebrow" Text="RVC STUDIO ACCOUNT" />
+          <TextBlock Text="{Binding HeaderTitle}" FontSize="18" FontWeight="SemiBold" />
+          <TextBlock Text="{Binding HeaderDescription}" Classes="muted" TextWrapping="Wrap" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+      <Grid Margin="18,14" RowDefinitions="Auto">
+        <StackPanel Grid.Row="0" IsVisible="{Binding IsAuthMode}" Spacing="11">
+          <Border Classes="inset" Padding="4">
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="4">
+              <Button Grid.Column="0" Classes="auth-tab" Classes.active="{Binding IsLoginMode}" Click="LoginMode_Click">登录</Button>
+              <Button Grid.Column="1" Classes="auth-tab" Classes.active="{Binding IsRegisterMode}" Click="RegisterMode_Click">注册账号</Button>
+            </Grid>
+          </Border>
+
+          <StackPanel Spacing="6">
+            <TextBlock Classes="field-label" Text="{Binding AccountFieldLabel}" />
+            <TextBox x:Name="EmailBox" PlaceholderText="{Binding AccountPlaceholder}" />
+          </StackPanel>
+
+          <StackPanel IsVisible="{Binding IsRegisterMode}" Spacing="6">
+            <TextBlock Classes="field-label" Text="展示名称" />
+            <TextBox x:Name="DisplayNameBox" PlaceholderText="RVC 用户" />
+          </StackPanel>
+
+          <StackPanel Spacing="6">
+            <TextBlock Classes="field-label" Text="密码" />
+            <TextBox x:Name="PasswordBox" PasswordChar="●" PlaceholderText="至少 8 位" />
+          </StackPanel>
+
+          <StackPanel IsVisible="{Binding IsRegisterMode}" Spacing="6">
+            <TextBlock Classes="field-label" Text="确认密码" />
+            <TextBox x:Name="ConfirmPasswordBox" PasswordChar="●" />
+          </StackPanel>
+
+          <StackPanel IsVisible="{Binding IsRegisterMode}" Spacing="6">
+            <TextBlock Classes="field-label" Text="邮箱验证码" />
+            <Grid ColumnDefinitions="*,112" ColumnSpacing="7">
+              <TextBox x:Name="RegisterCodeBox" MaxLength="6" PlaceholderText="6 位验证码" />
+              <Button Grid.Column="1" Click="SendRegisterCode_Click" IsEnabled="{Binding CanSendCode}" Content="{Binding CodeButtonText}" />
+            </Grid>
+          </StackPanel>
+
+          <CheckBox x:Name="AgreementCheck"
+                    IsVisible="{Binding IsRegisterMode}"
+                    Foreground="#A8B1AA"
+                    VerticalContentAlignment="Center">
+            <StackPanel Orientation="Horizontal" Spacing="0" VerticalAlignment="Center">
+              <TextBlock Text="我已阅读并同意" FontSize="10.5" VerticalAlignment="Center" />
+              <HyperlinkButton Classes="agreement-link" NavigateUri="http://thankful.top/protocol">用户协议</HyperlinkButton>
+              <TextBlock Text="和" FontSize="10.5" VerticalAlignment="Center" />
+              <HyperlinkButton Classes="agreement-link" NavigateUri="https://thankful.top/private">隐私协议</HyperlinkButton>
+            </StackPanel>
+          </CheckBox>
+
+          <Border IsVisible="{Binding HasStatus}" Background="#202821" BorderBrush="#354337" BorderThickness="1" CornerRadius="7" Padding="10,8">
+            <TextBlock Text="{Binding StatusText}" Foreground="{Binding StatusBrush}" FontSize="10.5" TextWrapping="Wrap" />
+          </Border>
+
+          <Button Classes="primary" Height="40" Click="SubmitAuth_Click" IsEnabled="{Binding CanSubmit}" Content="{Binding SubmitText}" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="0" IsVisible="{Binding IsProfileMode}" Spacing="14">
+          <Border Classes="dialog-card">
+            <Grid ColumnDefinitions="56,*" ColumnSpacing="13">
+              <Border Width="54" Height="54" CornerRadius="27" Background="#B8F36A">
+                <TextBlock Text="{Binding ProfileInitial}" Foreground="#17200E" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                <TextBlock Text="{Binding ProfileName}" FontSize="16" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding ProfileEmail}" Classes="muted" />
+                <TextBlock Text="RVC_STUDIO 用户" Foreground="#8FAA7A" FontSize="9.5" FontWeight="Bold" />
+              </StackPanel>
+            </Grid>
+          </Border>
+
+          <Border Classes="dialog-card">
+            <StackPanel Spacing="10">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="2">
+                  <TextBlock Classes="eyebrow" Text="MEMBERSHIP" />
+                  <TextBlock Text="{Binding MembershipTitle}" FontSize="14" FontWeight="SemiBold" />
+                </StackPanel>
+                <Border Grid.Column="1" Classes="badge"><TextBlock Text="{Binding MembershipBadge}" Foreground="#BFEF83" FontWeight="Bold" FontSize="9" /></Border>
+              </Grid>
+              <TextBlock Text="{Binding MembershipDescription}" Classes="muted" TextWrapping="Wrap" />
+              <Button Classes="primary" Click="OpenMembership_Click">开通 / 续费会员</Button>
+            </StackPanel>
+          </Border>
+
+          <Border Classes="dialog-card">
+            <StackPanel Spacing="8">
+              <TextBlock Classes="section-title" Text="账号操作" />
+              <Button Click="Logout_Click">退出登录</Button>
+              <Button Classes="danger" Click="DeleteMode_Click">永久注销账号</Button>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <StackPanel Grid.Row="0" IsVisible="{Binding IsDeleteMode}" Spacing="13">
+          <Border Background="#321D1A" BorderBrush="#66332E" BorderThickness="1" CornerRadius="9" Padding="11">
+            <StackPanel Spacing="4">
+              <TextBlock Text="注销后不可恢复" Foreground="#FFB0A8" FontWeight="SemiBold" />
+              <TextBlock Text="RVC Studio 账号和当前会员权益将永久失效；财务订单记录会按合规要求保留。" Foreground="#D39791" FontSize="10.5" TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+          <StackPanel Spacing="6">
+            <TextBlock Classes="field-label" Text="当前密码" />
+            <TextBox x:Name="DeletePasswordBox" PasswordChar="●" />
+          </StackPanel>
+          <StackPanel Spacing="6">
+            <TextBlock Classes="field-label" Text="邮箱验证码" />
+            <Grid ColumnDefinitions="*,112" ColumnSpacing="7">
+              <TextBox x:Name="DeleteCodeBox" MaxLength="6" />
+              <Button Grid.Column="1" Click="SendDeleteCode_Click" IsEnabled="{Binding CanSendCode}" Content="{Binding CodeButtonText}" />
+            </Grid>
+          </StackPanel>
+          <CheckBox x:Name="DeleteConfirmCheck" Foreground="#C7CECA">
+            <TextBlock Text="我确认永久注销当前 RVC Studio 账号" FontSize="10.5" />
+          </CheckBox>
+          <Border IsVisible="{Binding HasStatus}" Background="#28201F" BorderBrush="#4D3431" BorderThickness="1" CornerRadius="7" Padding="10,8">
+            <TextBlock Text="{Binding StatusText}" Foreground="{Binding StatusBrush}" FontSize="10.5" TextWrapping="Wrap" />
+          </Border>
+          <Button Classes="danger" Height="40" Click="DeleteAccount_Click" IsEnabled="{Binding CanSubmit}">永久注销账号</Button>
+          <Button Classes="quiet" Click="BackToProfile_Click">返回账号信息</Button>
+        </StackPanel>
+      </Grid>
+    </ScrollViewer>
+  </Grid>
+</Window>

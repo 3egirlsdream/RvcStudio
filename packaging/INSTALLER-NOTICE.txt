@@ -1,0 +1,11 @@
+RVC Studio NVIDIA 实时变声版安装说明
+
+1. 本软件面向 Windows 10/11 x64 和 NVIDIA RTX 显卡，需要兼容 CUDA 12.8 的 NVIDIA 驱动。
+2. 安装包可选安装标准 VB-CABLE 虚拟声卡。驱动安装需要管理员权限、Windows 驱动确认，并需要重启电脑。
+3. 标准 VB-CABLE 是 VB-Audio 提供的 Donationware。来源：https://vb-audio.com/Cable/
+   如果 VB-CABLE 对您有帮助，欢迎通过官方页面捐赠或购买许可证。
+4. RVC Studio 卸载程序不会自动卸载 VB-CABLE，因为该驱动可能被其他音频程序共同使用。
+5. VB-CABLE 驱动版权归 VB-Audio/Vincent Burel 所有，并按官方包原样随附。
+6. 随包音色模型仅应在拥有合法使用与再分发权的前提下使用。请勿用于冒充、欺诈或未经授权的声音传播。
+
+继续安装表示您理解以上事项。

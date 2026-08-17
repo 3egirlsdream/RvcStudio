@@ -1,0 +1,120 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="RvcStudio.App.MembershipWindow"
+        Width="730" Height="555" MinWidth="660" MinHeight="520"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Opened="Window_Opened"
+        Closing="Window_Closing"
+        Title="开通 RVC Studio 会员">
+  <Window.Styles>
+    <Style Selector="ListBox.plan-list">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="ListBox.plan-list > ListBoxItem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="0,0,9,0" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="ListBox.plan-list > ListBoxItem:selected Border.plan-card">
+      <Setter Property="Background" Value="#202D1B" />
+      <Setter Property="BorderBrush" Value="#86B84D" />
+      <Setter Property="BoxShadow" Value="0 6 20 0 #332F6A21" />
+    </Style>
+    <Style Selector="Border.plan-card">
+      <Setter Property="Width" Value="205" />
+      <Setter Property="Height" Value="124" />
+      <Setter Property="Background" Value="#151917" />
+      <Setter Property="BorderBrush" Value="#2D3530" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="13" />
+    </Style>
+  </Window.Styles>
+
+  <Grid RowDefinitions="Auto,*" Background="#0E110F">
+    <Border Grid.Row="0" Background="#121613" BorderBrush="#29302B" BorderThickness="0,0,0,1" Padding="20,16">
+      <Grid>
+        <StackPanel Spacing="3">
+          <TextBlock Classes="eyebrow" Text="RVC STUDIO MEMBERSHIP" />
+          <TextBlock Text="开通会员" FontSize="20" FontWeight="SemiBold" />
+          <TextBlock Text="支付成功后，会员权益将自动更新到当前 RVC Studio 账号。" Classes="muted" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <Grid Grid.Row="1" Margin="20" RowDefinitions="Auto,*,Auto" RowSpacing="15">
+      <StackPanel Grid.Row="0" Spacing="8">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Classes="section-title" Text="选择套餐" />
+          <TextBlock Grid.Column="1" Classes="muted" Text="支付宝网页安全支付" />
+        </Grid>
+        <ListBox x:Name="PlanList"
+                 Classes="plan-list"
+                 ItemsSource="{Binding Plans}"
+                 SelectedItem="{Binding SelectedPlan}"
+                 IsEnabled="{Binding CanSelectPlan}">
+          <ListBox.ItemsPanel>
+            <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+          </ListBox.ItemsPanel>
+          <ListBox.ItemTemplate>
+            <DataTemplate>
+              <Border Classes="plan-card">
+                <Grid RowDefinitions="Auto,Auto,*" RowSpacing="7">
+                  <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12" />
+                    <Border Grid.Column="1" Classes="badge" IsVisible="{Binding Recommended}" Padding="6,2">
+                      <TextBlock Text="推荐" Foreground="#BFEF83" FontSize="8.5" FontWeight="Bold" />
+                    </Border>
+                  </Grid>
+                  <TextBlock Grid.Row="1" Text="{Binding PriceText}" FontSize="25" FontWeight="Bold" Foreground="#F1F5F1" />
+                  <TextBlock Grid.Row="2" Text="{Binding Description}" Classes="muted" TextWrapping="Wrap" VerticalAlignment="Bottom" />
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </StackPanel>
+
+      <Border Grid.Row="1" Classes="card" Padding="16">
+        <Grid ColumnDefinitions="205,*" ColumnSpacing="18">
+          <Border Grid.Column="0" Background="#101411" BorderBrush="#29322B" BorderThickness="1" CornerRadius="10">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10" Margin="18">
+              <Border Width="58" Height="58" CornerRadius="29" Background="#25331F" BorderBrush="#435B36" BorderThickness="1">
+                <TextBlock Text="{Binding PaymentGlyph}" Foreground="#B8F36A" FontSize="22" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <TextBlock Text="{Binding PaymentPanelTitle}" FontWeight="SemiBold" TextAlignment="Center" />
+              <TextBlock Text="{Binding PaymentPanelDescription}" Classes="muted" TextWrapping="Wrap" TextAlignment="Center" />
+            </StackPanel>
+          </Border>
+
+          <StackPanel Grid.Column="1" Spacing="11" VerticalAlignment="Center">
+            <StackPanel Spacing="4">
+              <TextBlock Classes="eyebrow" Text="PAYMENT STATUS" />
+              <TextBlock Text="{Binding StatusTitle}" FontSize="17" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding StatusMessage}" Foreground="#A6AFA8" FontSize="11" TextWrapping="Wrap" LineHeight="16" />
+            </StackPanel>
+            <Border Height="1" Background="#2A312D" />
+            <Grid ColumnDefinitions="68,*" RowDefinitions="Auto,Auto" RowSpacing="7">
+              <TextBlock Grid.Row="0" Classes="muted" Text="账号" />
+              <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding AccountEmail}" FontSize="10.5" TextTrimming="CharacterEllipsis" />
+              <TextBlock Grid.Row="1" Classes="muted" Text="订单号" />
+              <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding OrderIdText}" FontSize="10.5" TextTrimming="CharacterEllipsis" />
+            </Grid>
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="8">
+        <Button Grid.Column="0" Classes="quiet" Click="OpenAgreement_Click">会员服务说明</Button>
+        <Button Grid.Column="1" Click="OpenPayment_Click" IsEnabled="{Binding CanOpenPayment}">重新打开支付页</Button>
+        <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8">
+          <Button Click="Refresh_Click" IsEnabled="{Binding CanRefresh}">刷新状态</Button>
+          <Button Classes="primary" MinWidth="148" Click="Purchase_Click" IsEnabled="{Binding CanPurchase}" Content="{Binding PurchaseButtonText}" />
+        </StackPanel>
+      </Grid>
+    </Grid>
+  </Grid>
+</Window>

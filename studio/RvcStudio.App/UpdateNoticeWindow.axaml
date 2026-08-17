@@ -1,0 +1,64 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="RvcStudio.App.UpdateNoticeWindow"
+        Width="500" Height="480"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        Title="发现 RVC Studio 新版本">
+  <Grid RowDefinitions="Auto,*,Auto" Background="#0E110F">
+    <Border Grid.Row="0" Background="#151C13" BorderBrush="#34452B" BorderThickness="0,0,0,1" Padding="22,18">
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
+        <Border Width="44" Height="44" CornerRadius="22" Background="#B7F36B">
+          <TextBlock Text="↑" Foreground="#142009" FontSize="24" FontWeight="Bold"
+                     HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Border>
+        <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+          <TextBlock Classes="eyebrow" Text="RVC STUDIO UPDATE" />
+          <TextBlock Text="发现新版本" FontSize="21" FontWeight="SemiBold" />
+          <TextBlock Text="加入官方 QQ 群获取新版程序" Classes="muted" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <Grid Grid.Row="1" Margin="22,18" RowDefinitions="Auto,*,Auto" RowSpacing="14">
+      <Border Grid.Row="0" Classes="inset" Padding="13">
+        <Grid ColumnDefinitions="*,Auto,*" ColumnSpacing="14">
+          <StackPanel Spacing="4">
+            <TextBlock Classes="muted" Text="当前版本" />
+            <TextBlock x:Name="CurrentVersionText" FontSize="17" FontWeight="SemiBold" />
+          </StackPanel>
+          <TextBlock Grid.Column="1" Text="→" FontSize="18" Foreground="#78817B" VerticalAlignment="Center" />
+          <StackPanel Grid.Column="2" Spacing="4">
+            <TextBlock Classes="muted" Text="最新版本" />
+            <TextBlock x:Name="AvailableVersionText" FontSize="17" FontWeight="Bold" Foreground="#B7F36B" />
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <StackPanel Grid.Row="1" Spacing="7">
+        <TextBlock Classes="section-title" Text="更新说明" />
+        <Border Classes="inset" MinHeight="96">
+          <ScrollViewer MaxHeight="116">
+            <TextBlock x:Name="MemoText" TextWrapping="Wrap" LineHeight="18" Foreground="#C8D0CA" />
+          </ScrollViewer>
+        </Border>
+      </StackPanel>
+
+      <Border Grid.Row="2" Background="#202A1C" BorderBrush="#496139" BorderThickness="1" CornerRadius="10" Padding="14">
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="14">
+          <StackPanel Spacing="4">
+            <TextBlock Text="当前版本暂不支持自动更新" Foreground="#DDF7BC" FontWeight="SemiBold" />
+            <TextBlock Text="请加入官方 QQ 群获取最新安装包" Classes="muted" />
+            <TextBlock Text="791129392" FontSize="24" FontWeight="Bold" Foreground="#B7F36B" Margin="0,3,0,0" />
+          </StackPanel>
+          <Button x:Name="CopyButton" Grid.Column="1" Click="CopyGroup_Click" VerticalAlignment="Center">复制群号</Button>
+        </Grid>
+      </Border>
+    </Grid>
+
+    <Border Grid.Row="2" BorderBrush="#29302B" BorderThickness="0,1,0,0" Padding="22,13">
+      <Button Classes="primary" HorizontalAlignment="Right" MinWidth="100" Click="Close_Click">我知道了</Button>
+    </Border>
+  </Grid>
+</Window>

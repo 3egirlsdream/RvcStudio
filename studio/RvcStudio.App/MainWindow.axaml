@@ -1,0 +1,338 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="using:RvcStudio.App"
+        x:Class="RvcStudio.App.MainWindow"
+        x:DataType="local:MainViewModel"
+        Width="1080" Height="690" MinWidth="930" MinHeight="610"
+        Title="RVC Studio"
+        Icon="/Assets/rvc-studio-icon-transparent.ico"
+        Opened="Window_Opened"
+        Closing="Window_Closing">
+  <Grid RowDefinitions="58,*,32" Background="#0E110F">
+
+    <!-- Compact application bar -->
+    <Border Grid.Row="0" Background="#121513" BorderBrush="#282D2A" BorderThickness="0,0,0,1">
+      <Grid ColumnDefinitions="172,*,Auto" Margin="12,0,14,0">
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
+          <Image Width="32" Height="32" Source="/Assets/rvc-studio-icon.png" Stretch="Uniform" />
+          <StackPanel Spacing="0" VerticalAlignment="Center">
+            <TextBlock Text="RVC Studio" FontSize="14.5" FontWeight="SemiBold" />
+            <TextBlock Classes="eyebrow" Text="VOICE WORKBENCH" FontSize="8" />
+          </StackPanel>
+        </StackPanel>
+
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+          <Border Background="#191E1B" BorderBrush="#2A312D" BorderThickness="1" CornerRadius="99" Padding="10,5">
+            <StackPanel Orientation="Horizontal" Spacing="7">
+              <Ellipse Width="7" Height="7" Fill="{Binding StatusBrush}" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding StatusText}" Foreground="#C5CCC7" FontSize="10.5" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="330" />
+            </StackPanel>
+          </Border>
+          <TextBlock Text="{Binding TimingText}" Classes="muted" VerticalAlignment="Center" />
+        </StackPanel>
+
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Button Click="Account_Click" Background="#191E1B" BorderBrush="#303833" Padding="8,5" MinWidth="128" Height="40">
+            <Grid ColumnDefinitions="28,*" ColumnSpacing="8">
+              <Border Width="28" Height="28" CornerRadius="14" Background="#26351F" BorderBrush="#425735" BorderThickness="1">
+                <TextBlock Text="{Binding AccountInitial}" Foreground="#B8F36A" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <StackPanel Grid.Column="1" Spacing="0" VerticalAlignment="Center">
+                <TextBlock Text="{Binding AccountButtonTitle}" Foreground="#E4EAE5" FontSize="10.5" FontWeight="SemiBold" MaxWidth="105" TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="{Binding AccountButtonSubtitle}" Foreground="#7E8A81" FontSize="8.5" />
+              </StackPanel>
+            </Grid>
+          </Button>
+
+          <Button Classes="primary"
+                  Classes.stop="{Binding IsRunning}"
+                  IsEnabled="{Binding CanToggleConversion}"
+                  Click="StartStop_Click"
+                  MinWidth="146">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Border Width="16" Height="16" CornerRadius="8" Background="#30142009">
+                <TextBlock Text="{Binding StartButtonGlyph}" FontSize="8" Foreground="{Binding $parent[Button].Foreground}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <TextBlock Text="{Binding StartButtonText}" Foreground="{Binding $parent[Button].Foreground}" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <Grid Grid.Row="1" ColumnDefinitions="172,*">
+
+      <!-- Narrow navigation / engine rail -->
+      <Border Grid.Column="0" Background="#101311" BorderBrush="#262B28" BorderThickness="0,0,1,0" Padding="10,12">
+        <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="10">
+          <TextBlock Grid.Row="0" Classes="eyebrow" Text="工作台" Margin="9,0,0,0" />
+          <Button Grid.Row="1" Classes="nav selected">
+            <StackPanel Orientation="Horizontal" Spacing="9">
+              <Border Width="20" Height="20" Background="#AEEA64" CornerRadius="6">
+                <TextBlock Text="≋" Foreground="#17200E" FontWeight="Bold" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <TextBlock Text="实时变声" VerticalAlignment="Center" FontWeight="SemiBold" />
+            </StackPanel>
+          </Button>
+
+          <StackPanel Grid.Row="2" Spacing="10" Margin="0,4,0,0">
+            <Border Background="#191D17"
+                    BorderBrush="{Binding UsageQuotaBrush}"
+                    BorderThickness="1.5"
+                    CornerRadius="10"
+                    Padding="10,9"
+                    BoxShadow="0 5 16 0 #50000000">
+              <StackPanel Spacing="4">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <Ellipse Width="7" Height="7" Fill="{Binding UsageQuotaBrush}" VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding UsageQuotaLabel}"
+                             Foreground="#CFD6D0"
+                             FontSize="9"
+                             FontWeight="SemiBold"
+                             VerticalAlignment="Center" />
+                </StackPanel>
+                <TextBlock Text="{Binding UsageQuotaValue}"
+                           Foreground="{Binding UsageQuotaBrush}"
+                           FontSize="22"
+                           FontWeight="Bold"
+                           HorizontalAlignment="Center" />
+                <Border Height="1" Background="#30372F" Margin="0,1" />
+                <TextBlock Text="{Binding UsageQuotaHint}"
+                           Foreground="#89938B"
+                           FontSize="8.5"
+                           TextWrapping="Wrap"
+                           TextAlignment="Center"
+                           HorizontalAlignment="Stretch" />
+              </StackPanel>
+            </Border>
+
+            <Border Classes="inset" Padding="10">
+              <StackPanel Spacing="7">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Classes="eyebrow" Text="运算引擎" VerticalAlignment="Center" />
+                  <Border Grid.Column="1" Classes="badge" Padding="6,2"><TextBlock Text="CUDA" Foreground="#BFEF83" FontSize="8.5" FontWeight="Bold" /></Border>
+                </Grid>
+                <TextBlock Text="{Binding GpuText}" TextWrapping="Wrap" Foreground="#C3CAC5" FontSize="10.5" LineHeight="15" />
+                <Border Height="1" Background="#252B27" />
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <Border Background="#1B221D" CornerRadius="5" Padding="5,2"><TextBlock Text="FCPE" Foreground="#9ED06B" FontSize="8.5" FontWeight="Bold" /></Border>
+                  <Border Background="#1B2224" CornerRadius="5" Padding="5,2"><TextBlock Text="LOCAL" Foreground="#73C9DA" FontSize="8.5" FontWeight="Bold" /></Border>
+                </StackPanel>
+              </StackPanel>
+            </Border>
+
+            <StackPanel Spacing="5" Margin="9,2">
+              <TextBlock Classes="eyebrow" Text="信号链路" />
+              <TextBlock Text="麦克风  →  RVC  →  虚拟线" Foreground="#A8B0AA" FontSize="10.5" />
+              <TextBlock Classes="muted" Text="QQ / 游戏选择虚拟线的 Output 端作为麦克风。" TextWrapping="Wrap" LineHeight="14" />
+            </StackPanel>
+          </StackPanel>
+
+          <TextBlock Grid.Row="3" Classes="muted" Text="音频始终在本机处理" HorizontalAlignment="Center" />
+        </Grid>
+      </Border>
+
+      <!-- Dense single-screen workbench -->
+      <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <Grid Margin="12" RowDefinitions="Auto,Auto,Auto" RowSpacing="10">
+
+          <!-- Model resources -->
+          <Border Grid.Row="0" Classes="card">
+            <Grid ColumnDefinitions="112,*,12,*" VerticalAlignment="Center">
+              <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                <TextBlock Classes="section-title" Text="音色资源" />
+                <TextBlock Classes="muted" Text="模型与可选索引" />
+              </StackPanel>
+
+              <StackPanel Grid.Column="1" Spacing="5">
+                <TextBlock Classes="label" Text="模型文件  ·  PTH" />
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="7">
+                  <TextBox Text="{Binding ModelPath}" PlaceholderText="选择音色模型" VerticalContentAlignment="Center" />
+                  <Button Grid.Column="1" Click="BrowseModel_Click" MinWidth="52">浏览</Button>
+                </Grid>
+              </StackPanel>
+
+              <StackPanel Grid.Column="3" Spacing="5">
+                <TextBlock Classes="label" Text="特征索引  ·  INDEX" />
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="7">
+                  <TextBox Text="{Binding IndexPath}" PlaceholderText="可选：选择索引文件" VerticalContentAlignment="Center" />
+                  <Button Grid.Column="1" Click="BrowseIndex_Click" MinWidth="52">浏览</Button>
+                </Grid>
+              </StackPanel>
+            </Grid>
+          </Border>
+
+          <Grid Grid.Row="1" ColumnDefinitions="0.92*,1.08*" ColumnSpacing="10">
+
+            <!-- Audio route -->
+            <Border Grid.Column="0" Classes="card">
+              <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="9">
+                <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*,Auto">
+                  <TextBlock Classes="section-title" Text="音频路由" VerticalAlignment="Center" />
+                  <Border Grid.Column="1" Classes="badge" Height="22" Padding="7,0" Margin="9,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="WASAPI" Foreground="#9BCDD5" FontSize="8.5" FontWeight="Bold" VerticalAlignment="Center" />
+                  </Border>
+                  <Button Grid.Column="3" Classes="quiet icon" Click="RefreshDevices_Click" ToolTip.Tip="刷新音频设备">↻</Button>
+                </Grid>
+
+                <Border Grid.Row="1" Classes="inset">
+                  <StackPanel Spacing="6">
+                    <Grid ColumnDefinitions="*,Auto">
+                      <TextBlock Classes="label" Text="实体麦克风" />
+                      <TextBlock Grid.Column="1" Classes="eyebrow" Text="INPUT" Foreground="#9ACD62" />
+                    </Grid>
+                    <ComboBox ItemsSource="{Binding Inputs}" SelectedItem="{Binding SelectedInput}" SelectionChanged="DeviceSelectionChanged">
+                      <ComboBox.ItemTemplate>
+                        <DataTemplate><TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" /></DataTemplate>
+                      </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                      <ProgressBar Value="{Binding InputMeter}" Maximum="100" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="1" Classes="muted" Text="IN" FontWeight="Bold" />
+                    </Grid>
+                  </StackPanel>
+                </Border>
+
+                <Grid Grid.Row="2" ColumnDefinitions="*,Auto,*" VerticalAlignment="Center">
+                  <Border Height="1" Background="#29302C" />
+                  <Border Grid.Column="1" Background="#202620" CornerRadius="8" Padding="9,3" Margin="8,0">
+                    <TextBlock Text="RVC 处理" Foreground="#B8DF89" FontSize="9.5" FontWeight="SemiBold" />
+                  </Border>
+                  <Border Grid.Column="2" Height="1" Background="#29302C" />
+                </Grid>
+
+                <Border Grid.Row="3" Classes="inset">
+                  <StackPanel Spacing="6">
+                    <Grid ColumnDefinitions="*,Auto">
+                      <TextBlock Classes="label" Text="虚拟音频线 · 扬声器端" />
+                      <TextBlock Grid.Column="1" Classes="eyebrow" Text="OUTPUT" Foreground="#68C8DB" />
+                    </Grid>
+                    <ComboBox ItemsSource="{Binding Outputs}" SelectedItem="{Binding SelectedOutput}" SelectionChanged="DeviceSelectionChanged">
+                      <ComboBox.ItemTemplate>
+                        <DataTemplate><TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" /></DataTemplate>
+                      </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                      <ProgressBar Value="{Binding OutputMeter}" Maximum="100" Foreground="#55C6DA" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="1" Classes="muted" Text="OUT" FontWeight="Bold" />
+                    </Grid>
+                  </StackPanel>
+                </Border>
+              </Grid>
+            </Border>
+
+            <!-- Voice character controls -->
+            <Border Grid.Column="1" Classes="card">
+              <Grid RowDefinitions="Auto,Auto,*,*,*,*" RowSpacing="6">
+                <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                  <TextBlock Classes="section-title" Text="音高与音色" VerticalAlignment="Center" />
+                  <Border Grid.Column="1" Classes="badge"><TextBlock Text="推荐 FCPE" Foreground="#C9F794" FontSize="9" FontWeight="SemiBold" /></Border>
+                </Grid>
+
+                <Grid Grid.Row="1" ColumnDefinitions="78,*,54" ColumnSpacing="8" VerticalAlignment="Center">
+                  <TextBlock Classes="label" Text="音高提取" VerticalAlignment="Center" />
+                  <ComboBox Grid.Column="1" ItemsSource="{Binding PitchMethods}" SelectedItem="{Binding PitchMethod}" />
+                  <Border Grid.Column="2" Classes="value-pill"><TextBlock Text="GPU" Foreground="#8DD2DF" FontSize="9.5" FontWeight="Bold" HorizontalAlignment="Center" /></Border>
+                </Grid>
+
+                <Grid Grid.Row="2" ColumnDefinitions="78,*,54" ColumnSpacing="8" VerticalAlignment="Center">
+                  <StackPanel Spacing="0" VerticalAlignment="Center"><TextBlock Classes="label" Text="音高" /><TextBlock Classes="muted" Text="半音" /></StackPanel>
+                  <Slider Grid.Column="1" Minimum="-16" Maximum="16" TickFrequency="1" Value="{Binding Pitch}" />
+                  <Border Grid.Column="2" Classes="value-pill"><TextBlock Text="{Binding Pitch, StringFormat={}{0:0}}" HorizontalAlignment="Center" FontWeight="SemiBold" /></Border>
+                </Grid>
+
+                <Grid Grid.Row="3" ColumnDefinitions="78,*,54" ColumnSpacing="8" VerticalAlignment="Center">
+                  <StackPanel Spacing="0" VerticalAlignment="Center"><TextBlock Classes="label" Text="声线粗细" /><TextBlock Classes="muted" Text="Formant" /></StackPanel>
+                  <Slider Grid.Column="1" Minimum="-2" Maximum="2" Value="{Binding Formant}" />
+                  <Border Grid.Column="2" Classes="value-pill"><TextBlock Text="{Binding Formant, StringFormat={}{0:0.00}}" HorizontalAlignment="Center" FontWeight="SemiBold" /></Border>
+                </Grid>
+
+                <Grid Grid.Row="4" ColumnDefinitions="78,*,54" ColumnSpacing="8" VerticalAlignment="Center">
+                  <StackPanel Spacing="0" VerticalAlignment="Center"><TextBlock Classes="label" Text="索引比例" /><TextBlock Classes="muted" Text="Index" /></StackPanel>
+                  <Slider Grid.Column="1" Minimum="0" Maximum="1" Value="{Binding IndexRate}" />
+                  <Border Grid.Column="2" Classes="value-pill"><TextBlock Text="{Binding IndexRate, StringFormat={}{0:0.00}}" HorizontalAlignment="Center" FontWeight="SemiBold" /></Border>
+                </Grid>
+
+                <Grid Grid.Row="5" ColumnDefinitions="78,*,54" ColumnSpacing="8" VerticalAlignment="Center">
+                  <StackPanel Spacing="0" VerticalAlignment="Center"><TextBlock Classes="label" Text="响度混合" /><TextBlock Classes="muted" Text="RMS" /></StackPanel>
+                  <Slider Grid.Column="1" Minimum="0" Maximum="1" Value="{Binding RmsMixRate}" />
+                  <Border Grid.Column="2" Classes="value-pill"><TextBlock Text="{Binding RmsMixRate, StringFormat={}{0:0.00}}" HorizontalAlignment="Center" FontWeight="SemiBold" /></Border>
+                </Grid>
+              </Grid>
+            </Border>
+          </Grid>
+
+          <!-- Performance panel -->
+          <Border Grid.Row="2" Classes="card">
+            <Grid RowDefinitions="Auto,Auto" RowSpacing="9">
+              <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
+                <TextBlock Classes="section-title" Text="性能与监听" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="15" VerticalAlignment="Center">
+                  <ToggleSwitch Content="输入降噪" IsChecked="{Binding InputNoiseReduce}" />
+                  <ToggleSwitch Content="输出降噪" IsChecked="{Binding OutputNoiseReduce}" />
+                  <ToggleSwitch Content="独占 WASAPI" IsChecked="{Binding WasapiExclusive}" />
+                  <ToggleSwitch Content="设备采样率" IsChecked="{Binding UseDeviceSampleRate}" />
+                </StackPanel>
+                <TextBlock Grid.Column="2" Classes="muted" Text="设备与缓冲参数在下次启动实时流时应用" VerticalAlignment="Center" />
+              </Grid>
+
+              <Grid Grid.Row="1" ColumnDefinitions="*,*,*,*" ColumnSpacing="18">
+                <StackPanel Grid.Column="0" Spacing="2">
+                  <Grid ColumnDefinitions="*,Auto"><TextBlock Classes="label" Text="噪声门限" /><TextBlock Grid.Column="1" Text="{Binding Threshold, StringFormat={}{0:0} dB}" Foreground="#C5CDC7" FontSize="10.5" /></Grid>
+                  <Slider Minimum="-80" Maximum="-20" Value="{Binding Threshold}" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Spacing="2">
+                  <Grid ColumnDefinitions="*,Auto"><TextBlock Classes="label" Text="分块时长" /><TextBlock Grid.Column="1" Text="{Binding BlockTime, StringFormat={}{0:0.00} s}" Foreground="#C5CDC7" FontSize="10.5" /></Grid>
+                  <Slider Minimum="0.02" Maximum="1.5" Value="{Binding BlockTime}" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Spacing="2">
+                  <Grid ColumnDefinitions="*,Auto"><TextBlock Classes="label" Text="交叉淡化" /><TextBlock Grid.Column="1" Text="{Binding CrossfadeLength, StringFormat={}{0:0.00} s}" Foreground="#C5CDC7" FontSize="10.5" /></Grid>
+                  <Slider Minimum="0.01" Maximum="0.15" Value="{Binding CrossfadeLength}" />
+                </StackPanel>
+                <StackPanel Grid.Column="3" Spacing="2">
+                  <Grid ColumnDefinitions="*,Auto"><TextBlock Classes="label" Text="额外推理" /><TextBlock Grid.Column="1" Text="{Binding ExtraTime, StringFormat={}{0:0.00} s}" Foreground="#C5CDC7" FontSize="10.5" /></Grid>
+                  <Slider Minimum="0.05" Maximum="5" Value="{Binding ExtraTime}" />
+                </StackPanel>
+              </Grid>
+            </Grid>
+          </Border>
+
+        </Grid>
+      </ScrollViewer>
+    </Grid>
+
+    <!-- Status strip -->
+    <Border Grid.Row="2" Background="#111412" BorderBrush="#282D2A" BorderThickness="0,1,0,0">
+      <Grid ColumnDefinitions="172,*,Auto,Auto" Margin="12,0,14,0">
+        <TextBlock Grid.Column="0" Classes="eyebrow" Text="RVC STUDIO · LOCAL" VerticalAlignment="Center" />
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+          <Ellipse Width="6" Height="6" Fill="{Binding StatusBrush}" />
+          <TextBlock Text="{Binding StatusText}" Foreground="#9EA7A1" FontSize="10" TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+        <TextBlock Grid.Column="2" Classes="muted" Text="FCPE · CUDA · WASAPI" VerticalAlignment="Center" Margin="0,0,12,0" />
+        <Button Grid.Column="3" Classes="quiet" Click="OpenLog_Click" Padding="7,0" MinHeight="24" VerticalAlignment="Center">打开日志</Button>
+      </Grid>
+    </Border>
+
+    <!-- Restart-required toast -->
+    <Border Grid.RowSpan="3"
+            IsVisible="{Binding IsToastVisible}"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Bottom"
+            Margin="0,0,20,44"
+            Background="{Binding ToastBrush}"
+            BorderBrush="#B48745"
+            BorderThickness="1"
+            CornerRadius="10"
+            Padding="12,10"
+            MaxWidth="410"
+            BoxShadow="0 10 28 0 #85000000">
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="9">
+        <Border Width="22" Height="22" CornerRadius="11" Background="#3B2C17">
+          <TextBlock Text="!" Foreground="#FFD38D" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Border>
+        <TextBlock Grid.Column="1" Text="{Binding ToastMessage}" TextWrapping="Wrap" Foreground="#FFF1D4" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

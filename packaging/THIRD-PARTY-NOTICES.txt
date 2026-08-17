@@ -1,0 +1,29 @@
+RVC Studio third-party notices
+================================
+
+RVC / Retrieval-based Voice Conversion WebUI
+  License: MIT
+  The full license text is installed as LICENSE.
+
+VB-CABLE Virtual Audio Device
+  Copyright Vincent Burel / VB-Audio.
+  Product and donation page: https://vb-audio.com/Cable/
+  Distribution terms: https://vb-audio.com/Services/licensing.htm
+  VB-CABLE is Donationware. All participations are welcome.
+  The official package and its readme/license are embedded without modification.
+
+PyTorch
+  License: BSD-style
+  https://github.com/pytorch/pytorch/blob/main/LICENSE
+
+NVIDIA CUDA runtime libraries distributed by the PyTorch Windows wheel
+  NVIDIA software license terms apply.
+  https://docs.nvidia.com/cuda/eula/
+
+Avalonia
+  License: MIT
+  https://github.com/AvaloniaUI/Avalonia/blob/master/licence.md
+
+Other Python packages
+  Package names, versions, declared licenses, and license files are copied to
+  the installed licenses directory during release assembly.
