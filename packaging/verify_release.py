@@ -21,6 +21,13 @@ def require_file(path: Path) -> None:
         raise FileNotFoundError(f"Required release file is missing: {path}")
 
 
+def compiled_cuda_architectures(torch_module: object) -> list[str]:
+    """Read architectures embedded in PyTorch without requiring a CUDA device."""
+    arch_getter = getattr(getattr(torch_module, "_C", None), "_cuda_getArchFlags", None)
+    arch_flags = arch_getter() if callable(arch_getter) else None
+    return arch_flags.split() if arch_flags else []
+
+
 def main() -> int:
     args = parse_args()
     root = args.root.resolve()
@@ -41,7 +48,7 @@ def main() -> int:
 
     import torch
 
-    architectures = torch.cuda.get_arch_list()
+    architectures = compiled_cuda_architectures(torch)
     required_architectures = {"sm_75", "sm_86", "sm_120"}
     if not required_architectures.issubset(architectures):
         missing = sorted(required_architectures.difference(architectures))
