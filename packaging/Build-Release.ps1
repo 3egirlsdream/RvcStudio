@@ -234,7 +234,7 @@ New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null
 $installerAssets = Join-Path $PackagingRoot 'installer-assets'
 New-Item -ItemType Directory -Path $installerAssets -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $RvcRoot 'LICENSE') -Destination (Join-Path $installerAssets 'LICENSE') -Force
-Copy-Item -LiteralPath (Join-Path $RvcRoot 'studio\RvcStudio.App\Assets\rvc-studio-icon-transparent.ico') -Destination (Join-Path $installerAssets 'rvc-studio-icon-transparent.ico') -Force
+Copy-Item -LiteralPath (Join-Path $RvcRoot 'studio\RvcStudio.App\Assets\rvc-studio-icon.ico') -Destination (Join-Path $installerAssets 'rvc-studio-icon.ico') -Force
 Reset-SafeDirectory -Path $StageRoot
 Reset-SafeDirectory -Path $PublishRoot
 

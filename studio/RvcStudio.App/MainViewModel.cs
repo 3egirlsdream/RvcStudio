@@ -85,7 +85,16 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
     public string StatusText { get => _statusText; private set => Set(ref _statusText, value); }
     public IBrush StatusBrush { get => _statusBrush; private set => Set(ref _statusBrush, value); }
     public string GpuText { get => _gpuText; private set => Set(ref _gpuText, value); }
-    public string ModelPath { get => _modelPath; set { if (Set(ref _modelPath, value)) QueueConfigApply(ConfigApplyKind.RestartRequired); } }
+    public string ModelPath
+    {
+        get => _modelPath;
+        set
+        {
+            if (!Set(ref _modelPath, value)) return;
+            if (!_suppressConfigApply) TrySelectMatchingIndex(value);
+            QueueConfigApply(ConfigApplyKind.RestartRequired);
+        }
+    }
     public string IndexPath { get => _indexPath; set { if (Set(ref _indexPath, value)) QueueConfigApply(ConfigApplyKind.RestartRequired); } }
     public AudioDevice? SelectedInput { get => _selectedInput; set => Set(ref _selectedInput, value); }
     public AudioDevice? SelectedOutput { get => _selectedOutput; set => Set(ref _selectedOutput, value); }
@@ -630,6 +639,52 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
     {
         return device.Name.Contains("CABLE Input", StringComparison.OrdinalIgnoreCase)
             || device.Name.Contains("VB-Audio Virtual Cable", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void TrySelectMatchingIndex(string modelPath)
+    {
+        if (string.IsNullOrWhiteSpace(modelPath) ||
+            !string.Equals(Path.GetExtension(modelPath), ".pth", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        try
+        {
+            var modelDirectory = Path.GetDirectoryName(modelPath);
+            var modelName = Path.GetFileNameWithoutExtension(modelPath);
+            if (string.IsNullOrWhiteSpace(modelDirectory) || string.IsNullOrWhiteSpace(modelName)) return;
+
+            var searchDirectories = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                modelDirectory,
+                Path.Combine(modelDirectory, "indices"),
+            };
+            var modelDirectoryParent = Path.GetDirectoryName(modelDirectory);
+            if (!string.IsNullOrWhiteSpace(modelDirectoryParent))
+            {
+                searchDirectories.Add(Path.Combine(modelDirectoryParent, "indices"));
+            }
+            var currentIndexDirectory = Path.GetDirectoryName(IndexPath);
+            if (!string.IsNullOrWhiteSpace(currentIndexDirectory))
+            {
+                searchDirectories.Add(currentIndexDirectory);
+            }
+            searchDirectories.Add(ResolveBrowseDirectory(string.Empty, "assets", "indices"));
+
+            foreach (var directory in searchDirectories)
+            {
+                var candidate = Path.Combine(directory, $"{modelName}.index");
+                if (!File.Exists(candidate)) continue;
+                IndexPath = candidate;
+                AppendLog($"已自动匹配同名索引：{Path.GetFileName(candidate)}");
+                return;
+            }
+        }
+        catch (Exception exception) when (exception is ArgumentException or IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            // An invalid or inaccessible model path leaves the currently selected index unchanged.
+        }
     }
 
     private string ResolveBrowseDirectory(string selectedPath, params string[] bundledDirectoryParts)

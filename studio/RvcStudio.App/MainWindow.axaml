@@ -5,7 +5,7 @@
         x:DataType="local:MainViewModel"
         Width="1080" Height="690" MinWidth="930" MinHeight="610"
         Title="RVC Studio"
-        Icon="/Assets/rvc-studio-icon-transparent.ico"
+        Icon="/Assets/rvc-studio-icon.ico"
         Opened="Window_Opened"
         Closing="Window_Closing">
   <Grid RowDefinitions="58,*,32" Background="#0E110F">
