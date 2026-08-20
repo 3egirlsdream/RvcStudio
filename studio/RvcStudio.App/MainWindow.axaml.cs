@@ -7,11 +7,8 @@ namespace RvcStudio.App;
 public partial class MainWindow : Window
 {
     private readonly MainViewModel _viewModel = new();
-    private readonly AppUpdateService _updateService = new();
-    private readonly CancellationTokenSource _updateCheckCts = new();
     private bool _canClose;
     private bool _closing;
-    private bool _updateCheckStarted;
 
     public MainWindow()
     {
@@ -22,28 +19,6 @@ public partial class MainWindow : Window
     private async void Window_Opened(object? sender, EventArgs e)
     {
         await _viewModel.InitializeAsync();
-        await CheckForUpdatesAsync();
-    }
-
-    private async Task CheckForUpdatesAsync()
-    {
-        if (_updateCheckStarted || _closing) return;
-        _updateCheckStarted = true;
-        try
-        {
-            var update = await _updateService.CheckAsync(_updateCheckCts.Token);
-            if (update.IsAvailable && !_closing)
-            {
-                await new UpdateNoticeWindow(update).ShowDialog(this);
-            }
-        }
-        catch (OperationCanceledException) when (_closing)
-        {
-        }
-        catch (Exception exception)
-        {
-            _viewModel.ReportUpdateCheckFailure(exception);
-        }
     }
 
     private async void BrowseModel_Click(object? sender, RoutedEventArgs e)
@@ -72,6 +47,9 @@ public partial class MainWindow : Window
 
     private async void StartStop_Click(object? sender, RoutedEventArgs e) => await _viewModel.StartOrStopAsync();
 
+    private async void Settings_Click(object? sender, RoutedEventArgs e) =>
+        await new SettingsWindow().ShowDialog(this);
+
     private async void Account_Click(object? sender, RoutedEventArgs e)
     {
         var dialog = new AccountWindow(_viewModel.Account);
@@ -90,15 +68,12 @@ public partial class MainWindow : Window
         e.Cancel = true;
         if (_closing) return;
         _closing = true;
-        _updateCheckCts.Cancel();
         try
         {
             await _viewModel.DisposeAsync();
         }
         finally
         {
-            _updateService.Dispose();
-            _updateCheckCts.Dispose();
             _canClose = true;
             Close();
         }

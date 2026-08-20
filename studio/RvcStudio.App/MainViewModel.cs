@@ -61,6 +61,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
     private bool _isToastVisible;
     private string _toastMessage = string.Empty;
     private IBrush _toastBrush = new SolidColorBrush(Color.Parse("#253A20"));
+    private bool _isClosing;
+    private string _closingMessage = "正在准备安全退出…";
+    private string _closingDetail = "请稍候，RVC Studio 正在清理本地资源。";
+    private string _closingStepText = "1 / 9";
+    private double _closingProgress = 1;
     private string _usageQuotaText = "免费额度 · 正在读取";
     private string _usageQuotaLabel = "今日免费剩余";
     private string _usageQuotaValue = "--:--:--";
@@ -127,6 +132,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
     public bool IsToastVisible { get => _isToastVisible; private set => Set(ref _isToastVisible, value); }
     public string ToastMessage { get => _toastMessage; private set => Set(ref _toastMessage, value); }
     public IBrush ToastBrush { get => _toastBrush; private set => Set(ref _toastBrush, value); }
+    public bool IsClosing { get => _isClosing; private set => Set(ref _isClosing, value); }
+    public string ClosingMessage { get => _closingMessage; private set => Set(ref _closingMessage, value); }
+    public string ClosingDetail { get => _closingDetail; private set => Set(ref _closingDetail, value); }
+    public string ClosingStepText { get => _closingStepText; private set => Set(ref _closingStepText, value); }
+    public double ClosingProgress { get => _closingProgress; private set => Set(ref _closingProgress, value); }
     public bool IsAuthenticated => Account.IsAuthenticated;
     public string AccountButtonTitle => Account.Account?.DisplayName ?? "登录 / 注册";
     public string AccountButtonSubtitle
@@ -166,6 +176,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
                 : "未检测到可用 CUDA GPU";
             await ReloadDevicesAsync(false);
             ApplyStatus(await _engine.GetStatusAsync(), applySavedConfig: true);
+            // Persist the validated selections as well, so a missing model or
+            // disconnected audio device is not retried on every launch.
+            await _engine.UpdateConfigAsync(BuildConfig());
             _interactiveReady = true;
             RememberAppliedDeviceSelection();
             SetReady("引擎已就绪", "可选择模型和音频设备。FCPE 已可用。");
@@ -214,20 +227,17 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
     {
         try
         {
-            var oldInput = SelectedInput?.Id;
-            var oldOutput = SelectedOutput?.Id;
+            var oldInput = SelectedInput;
+            var oldOutput = SelectedOutput;
             var devices = await _engine.GetDevicesAsync(refresh);
             Inputs.Clear();
             Outputs.Clear();
             foreach (var item in devices.Inputs) Inputs.Add(item);
             foreach (var item in devices.Outputs) Outputs.Add(item);
-            SelectedInput = Inputs.FirstOrDefault(item => item.Id == oldInput)
-                ?? Inputs.FirstOrDefault(item => item.IsDefault)
-                ?? Inputs.FirstOrDefault();
-            SelectedOutput = Outputs.FirstOrDefault(item => item.Id == oldOutput)
-                ?? Outputs.FirstOrDefault(IsStandardVbCableInput)
-                ?? Outputs.FirstOrDefault(item => item.IsDefault)
-                ?? Outputs.FirstOrDefault();
+            SelectedInput = FindRememberedDevice(Inputs, oldInput?.Id, oldInput?.Name, oldInput?.Hostapi)
+                ?? SelectFallbackInput();
+            SelectedOutput = FindRememberedDevice(Outputs, oldOutput?.Id, oldOutput?.Name, oldOutput?.Hostapi)
+                ?? SelectFallbackOutput();
             AppendLog($"音频设备已刷新：{Inputs.Count} 个输入，{Outputs.Count} 个输出。");
         }
         catch (Exception exception)
@@ -597,12 +607,21 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
 
     private void ApplySavedConfig(Dictionary<string, object?> config)
     {
-        if (config.Count == 0) return;
         _suppressConfigApply = true;
         try
         {
-            ModelPath = GetString(config, "pth_path", ModelPath);
-            IndexPath = GetString(config, "index_path", IndexPath);
+            var rememberedModelPath = GetString(config, "pth_path", ModelPath);
+            var rememberedModel = ResolveExistingFile(rememberedModelPath, ".pth");
+            ModelPath = rememberedModel ?? SelectFallbackModel(rememberedModelPath);
+
+            var rememberedIndexPath = GetString(config, "index_path", IndexPath);
+            IndexPath = rememberedModel is not null
+                ? ResolveExistingFile(rememberedIndexPath, ".index") ?? string.Empty
+                : string.Empty;
+            if (!string.IsNullOrWhiteSpace(ModelPath) && string.IsNullOrWhiteSpace(IndexPath))
+            {
+                TrySelectMatchingIndex(ModelPath);
+            }
             PitchMethod = GetString(config, "f0method", PitchMethod);
             Pitch = GetDouble(config, "pitch", Pitch);
             Formant = GetDouble(config, "formant", Formant);
@@ -620,8 +639,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
             var outputId = GetString(config, "output_device_id", string.Empty);
             var inputName = GetString(config, "input_device_name", string.Empty);
             var outputName = GetString(config, "output_device_name", string.Empty);
-            SelectedInput = Inputs.FirstOrDefault(item => item.Id == inputId) ?? Inputs.FirstOrDefault(item => item.Name == inputName) ?? SelectedInput;
-            SelectedOutput = Outputs.FirstOrDefault(item => item.Id == outputId) ?? Outputs.FirstOrDefault(item => item.Name == outputName) ?? SelectedOutput;
+            var hostapi = GetString(config, "hostapi", string.Empty);
+            SelectedInput = FindRememberedDevice(Inputs, inputId, inputName, hostapi) ?? SelectFallbackInput();
+            SelectedOutput = FindRememberedDevice(Outputs, outputId, outputName, hostapi) ?? SelectFallbackOutput();
         }
         finally
         {
@@ -640,6 +660,149 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
         return device.Name.Contains("CABLE Input", StringComparison.OrdinalIgnoreCase)
             || device.Name.Contains("VB-Audio Virtual Cable", StringComparison.OrdinalIgnoreCase);
     }
+
+    private AudioDevice? SelectFallbackInput() =>
+        Inputs.FirstOrDefault(item => item.IsDefault) ?? Inputs.FirstOrDefault();
+
+    private AudioDevice? SelectFallbackOutput() =>
+        Outputs.FirstOrDefault(IsStandardVbCableInput)
+        ?? Outputs.FirstOrDefault(item => item.IsDefault)
+        ?? Outputs.FirstOrDefault();
+
+    private static AudioDevice? FindRememberedDevice(
+        IEnumerable<AudioDevice> devices,
+        string? id,
+        string? name,
+        string? hostapi)
+    {
+        var available = devices as IReadOnlyList<AudioDevice> ?? devices.ToList();
+        if (!string.IsNullOrWhiteSpace(id))
+        {
+            var byId = available.FirstOrDefault(item =>
+                item.Id == id &&
+                (string.IsNullOrWhiteSpace(name) || item.Name == name));
+            if (byId is not null) return byId;
+        }
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            return available.FirstOrDefault(item =>
+                       item.Name == name &&
+                       (string.IsNullOrWhiteSpace(hostapi) || item.Hostapi == hostapi))
+                   ?? available.FirstOrDefault(item => item.Name == name);
+        }
+        return null;
+    }
+
+    private string SelectFallbackModel(string rememberedPath)
+    {
+        foreach (var directory in GetModelSearchDirectories(rememberedPath))
+        {
+            try
+            {
+                var fallback = Directory.EnumerateFiles(directory, "*.pth", SearchOption.TopDirectoryOnly)
+                    .OrderBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase)
+                    .FirstOrDefault();
+                if (fallback is not null)
+                {
+                    if (!string.IsNullOrWhiteSpace(rememberedPath))
+                    {
+                        AppendLog($"上次使用的模型不存在，已改用：{Path.GetFileName(fallback)}");
+                    }
+                    return Path.GetFullPath(fallback);
+                }
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                // Continue with the next known model directory.
+            }
+        }
+        if (!string.IsNullOrWhiteSpace(rememberedPath))
+        {
+            AppendLog("上次使用的模型不存在，且未找到其他可用的 .pth 模型。");
+        }
+        return string.Empty;
+    }
+
+    private IEnumerable<string> GetModelSearchDirectories(string rememberedPath)
+    {
+        var directories = new List<string>();
+        void AddDirectory(string directory)
+        {
+            if (!directories.Contains(directory, StringComparer.OrdinalIgnoreCase))
+            {
+                directories.Add(directory);
+            }
+        }
+
+        foreach (var baseDirectory in GetPathBaseDirectories())
+        {
+            if (!string.IsNullOrWhiteSpace(rememberedPath))
+            {
+                try
+                {
+                    var rememberedFullPath = Path.IsPathFullyQualified(rememberedPath)
+                        ? Path.GetFullPath(rememberedPath)
+                        : Path.GetFullPath(rememberedPath, baseDirectory);
+                    var rememberedDirectory = Path.GetDirectoryName(rememberedFullPath);
+                    if (!string.IsNullOrWhiteSpace(rememberedDirectory) && Directory.Exists(rememberedDirectory))
+                    {
+                        AddDirectory(rememberedDirectory);
+                    }
+                }
+                catch (Exception exception) when (exception is ArgumentException or IOException or UnauthorizedAccessException or NotSupportedException)
+                {
+                    // An invalid remembered path cannot contribute a search directory.
+                }
+            }
+
+            var bundledDirectory = Path.Combine(baseDirectory, "assets", "weights");
+            if (Directory.Exists(bundledDirectory)) AddDirectory(bundledDirectory);
+        }
+        return directories;
+    }
+
+    private string? ResolveExistingFile(string path, string expectedExtension)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+        try
+        {
+            if (!string.Equals(Path.GetExtension(path), expectedExtension, StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException)
+        {
+            return null;
+        }
+
+        foreach (var baseDirectory in GetPathBaseDirectories())
+        {
+            try
+            {
+                var candidate = Path.IsPathFullyQualified(path)
+                    ? Path.GetFullPath(path)
+                    : Path.GetFullPath(path, baseDirectory);
+                if (File.Exists(candidate)) return candidate;
+                if (Path.IsPathFullyQualified(path)) break;
+            }
+            catch (Exception exception) when (exception is ArgumentException or IOException or UnauthorizedAccessException or NotSupportedException)
+            {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private IEnumerable<string> GetPathBaseDirectories() => new[]
+    {
+        _engine.RvcRoot,
+        Environment.CurrentDirectory,
+        AppContext.BaseDirectory,
+    }.Where(path => !string.IsNullOrWhiteSpace(path)).Distinct(StringComparer.OrdinalIgnoreCase);
 
     private void TrySelectMatchingIndex(string modelPath)
     {
@@ -689,12 +852,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
 
     private string ResolveBrowseDirectory(string selectedPath, params string[] bundledDirectoryParts)
     {
-        var baseDirectories = new[]
-        {
-            _engine.RvcRoot,
-            Environment.CurrentDirectory,
-            AppContext.BaseDirectory,
-        }.Where(path => !string.IsNullOrWhiteSpace(path)).Distinct(StringComparer.OrdinalIgnoreCase);
+        var baseDirectories = GetPathBaseDirectories();
 
         if (!string.IsNullOrWhiteSpace(selectedPath))
         {
@@ -809,6 +967,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
         if (_disposeTask is null)
         {
             _isDisposing = true;
+            IsClosing = true;
+            IsToastVisible = false;
             _disposeTask = DisposeCoreAsync();
         }
         return new ValueTask(_disposeTask);
@@ -816,6 +976,14 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
 
     private async Task DisposeCoreAsync()
     {
+        const int closingStepCount = 9;
+        var warningCount = 0;
+
+        UpdateClosingProgress(
+            1,
+            closingStepCount,
+            "正在准备安全退出…",
+            "停止状态刷新，并取消尚未执行的设备与参数更新。");
         _statusTimer.Stop();
         _deviceSelectionCts?.Cancel();
         _deviceSelectionCts?.Dispose();
@@ -826,9 +994,19 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
         Account.Changed -= Account_Changed;
         // Let an in-flight quota enforcement/automatic stop finish, then keep
         // new quota work out of the engine shutdown sequence.
+        UpdateClosingProgress(
+            2,
+            closingStepCount,
+            "正在等待后台任务完成…",
+            "等待用量记录与自动停止流程结束。请稍候。");
         await _quotaUpdateGate.WaitAsync();
 
         var conversionRunning = IsRunning;
+        UpdateClosingProgress(
+            3,
+            closingStepCount,
+            "正在确认实时变声状态…",
+            "正在读取引擎状态，确认音频流是否仍在运行。");
         try
         {
             using var statusTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
@@ -838,6 +1016,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
         }
         catch (Exception exception)
         {
+            warningCount++;
             // Fall back to the last known state. Engine disposal below still
             // performs a shutdown/kill if the control channel is unavailable.
             AppendLog($"关闭前检测实时变声状态失败：{exception.Message}");
@@ -845,6 +1024,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
 
         if (conversionRunning)
         {
+            UpdateClosingProgress(
+                4,
+                closingStepCount,
+                "正在关闭实时变声…",
+                "正在释放音频输入、输出与模型处理流。");
             try
             {
                 StatusText = "正在关闭实时变声…";
@@ -855,37 +1039,111 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
             }
             catch (Exception exception)
             {
+                warningCount++;
                 AppendLog($"自动关闭实时变声失败，将强制关闭后台引擎：{exception.Message}");
             }
         }
+        else
+        {
+            UpdateClosingProgress(
+                4,
+                closingStepCount,
+                "实时变声已经停止",
+                "无需额外关闭音频流，继续保存本地状态。");
+        }
 
+        UpdateClosingProgress(
+            5,
+            closingStepCount,
+            "正在保存使用记录…",
+            "正在写入今日免费额度并结束本次使用会话。");
         try
         {
             await _usageQuota.StopTrackingAsync();
         }
         catch (Exception exception)
         {
+            warningCount++;
             AppendLog($"保存免费额度记录失败：{exception.Message}");
         }
-        Account.Dispose();
+        try
+        {
+            Account.Dispose();
+        }
+        catch (Exception exception)
+        {
+            warningCount++;
+            AppendLog($"释放账号会话失败：{exception.Message}");
+        }
+
+        UpdateClosingProgress(
+            6,
+            closingStepCount,
+            "正在保存当前设置…",
+            "正在保存模型、音频设备与实时变声参数。");
+        try
+        {
+            // Flush the latest UI selections even when the debounce window has
+            // not elapsed yet (for example, when the app is closed immediately).
+            using var configTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            await _engine.UpdateConfigAsync(BuildConfig(), configTimeout.Token);
+        }
+        catch (Exception exception)
+        {
+            warningCount++;
+            AppendLog($"保存上次选择失败：{exception.Message}");
+        }
+
+        UpdateClosingProgress(
+            7,
+            closingStepCount,
+            "正在关闭后台引擎…",
+            "通知 RVC 后台进程退出并释放 GPU 资源，此步骤可能需要几秒钟。");
         try
         {
             await _engine.DisposeAsync();
         }
         catch (Exception exception)
         {
+            warningCount++;
             AppendLog($"关闭后台引擎失败：{exception.Message}");
         }
+
+        UpdateClosingProgress(
+            8,
+            closingStepCount,
+            "正在释放本地资源…",
+            "关闭用量记录服务并完成最后检查。");
         try
         {
             await _usageQuota.DisposeAsync();
         }
         catch (Exception exception)
         {
+            warningCount++;
             AppendLog($"释放免费额度记录失败：{exception.Message}");
         }
         _quotaUpdateGate.Release();
         _quotaUpdateGate.Dispose();
+
+        UpdateClosingProgress(
+            9,
+            closingStepCount,
+            "清理完成，正在退出…",
+            warningCount == 0
+                ? "所有本地状态均已安全保存。"
+                : $"安全退出已完成，其中 {warningCount} 项使用了兜底清理。");
+        await Task.Delay(180);
+    }
+
+    private void UpdateClosingProgress(int step, int stepCount, string message, string detail)
+    {
+        ClosingStepText = $"{step} / {stepCount}";
+        ClosingProgress = step * 100d / stepCount;
+        ClosingMessage = message;
+        ClosingDetail = detail;
+        StatusText = message;
+        StatusBrush = new SolidColorBrush(Color.Parse("#B8F36A"));
     }
 
     private bool Set<T>(ref T field, T value, [CallerMemberName] string? name = null)

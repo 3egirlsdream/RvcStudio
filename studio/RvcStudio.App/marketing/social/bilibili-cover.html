@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=1920, initial-scale=1" />
+  <title>RVC Studio · B站封面</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; }
+    body { font-family: "Noto Sans SC", "Microsoft YaHei", sans-serif; background: #061008; }
+    .cover {
+      position: relative;
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      color: #f6faf6;
+      background: #061008 url("bilibili-bg.png") center / cover no-repeat;
+    }
+    .cover::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 11% 32%, rgba(184, 243, 106, .12), transparent 29%),
+        linear-gradient(90deg, rgba(3, 8, 4, .55) 0%, rgba(3, 8, 4, .17) 52%, rgba(3, 8, 4, .03) 100%);
+    }
+    .brand {
+      position: absolute;
+      top: 66px;
+      left: 78px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+    .brand img { width: 68px; height: 68px; border-radius: 20px; filter: drop-shadow(0 12px 22px rgba(0, 0, 0, .5)); }
+    .brand-name { font-size: 31px; line-height: 1; font-weight: 900; }
+    .brand-sub { margin-top: 9px; color: #9ea9a1; font-size: 15px; font-weight: 800; letter-spacing: 4px; }
+    .copy {
+      position: absolute;
+      z-index: 3;
+      top: 234px;
+      left: 80px;
+      width: 710px;
+    }
+    .kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      color: #cbfa91;
+      font-size: 25px;
+      font-weight: 900;
+      letter-spacing: 4px;
+    }
+    .kicker::before { content: ""; width: 54px; height: 6px; border-radius: 9px; background: #b8f36a; box-shadow: 0 0 20px rgba(184, 243, 106, .5); }
+    h1 { margin: 24px 0 0; font-size: 102px; line-height: 1.04; font-weight: 950; letter-spacing: -7px; text-shadow: 0 9px 34px rgba(0, 0, 0, .55); }
+    h1 span { display: block; margin-top: 8px; color: #b8f36a; }
+    .sub { margin-top: 35px; color: #d5ded7; font-size: 26px; font-weight: 700; letter-spacing: 3px; }
+    .chips { display: flex; gap: 14px; margin-top: 40px; }
+    .chip {
+      padding: 12px 18px;
+      border: 1px solid rgba(184, 243, 106, .42);
+      border-radius: 13px;
+      background: rgba(14, 22, 16, .82);
+      color: #e0eadf;
+      font-size: 19px;
+      font-weight: 800;
+    }
+    .screen-card {
+      position: absolute;
+      z-index: 2;
+      top: 170px;
+      right: -130px;
+      width: 1190px;
+      padding: 14px;
+      border: 1px solid rgba(204, 255, 144, .38);
+      border-radius: 34px;
+      background: linear-gradient(145deg, rgba(43, 58, 46, .95), rgba(7, 12, 8, .98));
+      box-shadow: 0 55px 110px rgba(0, 0, 0, .66), 0 0 90px rgba(142, 230, 53, .13);
+      transform: perspective(1800px) rotateY(-9deg) rotateZ(1deg);
+      transform-origin: center right;
+    }
+    .screen {
+      position: relative;
+      overflow: hidden;
+      width: 100%;
+      aspect-ratio: 2184 / 1450;
+      border: 1px solid #2b332e;
+      border-radius: 22px;
+      background: #0e110f;
+    }
+    .screen > img { display: block; width: 100%; height: 100%; }
+    .scrub {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      overflow: hidden;
+      padding: 0 12px;
+      border: 1px solid #303a34;
+      border-radius: 9px;
+      background: #111713;
+      color: #87938b;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .path-a { left: 28.9%; top: 18.25%; width: 28.2%; height: 4.8%; }
+    .path-b { left: 63.6%; top: 18.25%; width: 28.1%; height: 4.8%; }
+    .account { left: 72.4%; top: 5.1%; width: 11.8%; height: 5.5%; justify-content: center; color: #b8f36a; }
+    .gpu { left: 2.4%; top: 42%; width: 13.2%; height: 4.2%; justify-content: center; color: #c8d2ca; }
+    .stamp {
+      position: absolute;
+      z-index: 4;
+      right: 74px;
+      bottom: 54px;
+      padding: 16px 26px;
+      border: 2px solid #b8f36a;
+      border-radius: 999px;
+      background: rgba(10, 17, 11, .9);
+      color: #cffa92;
+      font-size: 23px;
+      font-weight: 950;
+      letter-spacing: 2px;
+      box-shadow: 0 14px 36px rgba(0, 0, 0, .4), inset 0 0 24px rgba(184, 243, 106, .07);
+    }
+  </style>
+</head>
+<body>
+  <main class="cover">
+    <header class="brand">
+      <img src="../../Assets/rvc-studio-icon.png" alt="" />
+      <div>
+        <div class="brand-name">RVC Studio</div>
+        <div class="brand-sub">VOICE WORKBENCH</div>
+      </div>
+    </header>
+
+    <section class="copy">
+      <div class="kicker">WINDOWS 实时变声</div>
+      <h1>一套界面<span>搞定整条声链</span></h1>
+      <div class="sub">本地处理 · CUDA 加速 · FCPE 音高</div>
+      <div class="chips">
+        <div class="chip">模型 / Index</div>
+        <div class="chip">音频路由</div>
+        <div class="chip">双向降噪</div>
+      </div>
+    </section>
+
+    <section class="screen-card">
+      <div class="screen">
+        <img src="../rvc-studio-ui.png" alt="RVC Studio 产品界面" />
+        <div class="scrub path-a">models\voice.pth</div>
+        <div class="scrub path-b">indices\voice.index</div>
+        <div class="scrub account">RVC 账号</div>
+        <div class="scrub gpu">NVIDIA GPU</div>
+      </div>
+    </section>
+
+    <div class="stamp">音频始终在本机处理</div>
+  </main>
+</body>
+</html>

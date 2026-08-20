@@ -1,0 +1,109 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="RvcStudio.App.SettingsWindow"
+        Width="540" Height="470"
+        MinWidth="500" MinHeight="430"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        Title="RVC Studio 设置"
+        Closed="Window_Closed">
+  <Window.Styles>
+    <Style Selector="Border.settings-card">
+      <Setter Property="Background" Value="#151917" />
+      <Setter Property="BorderBrush" Value="#2D3530" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Padding" Value="16" />
+    </Style>
+  </Window.Styles>
+
+  <Grid RowDefinitions="Auto,*,Auto" Background="#0E110F">
+    <Border Grid.Row="0" Background="#121613" BorderBrush="#29302B" BorderThickness="0,0,0,1" Padding="20,15">
+      <Grid ColumnDefinitions="46,*" ColumnSpacing="12">
+        <Border Width="42" Height="42" CornerRadius="11" Background="#26351F" BorderBrush="#415634" BorderThickness="1">
+          <TextBlock Text="⚙" Foreground="#B8F36A" FontSize="21" HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Border>
+        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+          <TextBlock Classes="eyebrow" Text="RVC STUDIO SETTINGS" />
+          <TextBlock Text="设置" FontSize="19" FontWeight="SemiBold" />
+          <TextBlock Text="管理应用信息与软件更新" Classes="muted" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+      <StackPanel Margin="20,16" Spacing="12">
+        <Border Classes="settings-card">
+          <StackPanel Spacing="13">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+              <StackPanel Spacing="3">
+                <TextBlock Classes="section-title" Text="软件更新" />
+                <TextBlock Classes="muted" Text="手动连接更新服务器，检查是否有新版本。" />
+              </StackPanel>
+              <Border Grid.Column="1" Classes="badge" Padding="9,4">
+                <TextBlock Text="稳定版" Foreground="#BFEF83" FontSize="9" FontWeight="Bold" />
+              </Border>
+            </Grid>
+
+            <Border Classes="inset" Padding="12">
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <StackPanel Spacing="3" VerticalAlignment="Center">
+                  <TextBlock Classes="label" Text="当前版本" />
+                  <TextBlock x:Name="CurrentVersionText" FontSize="18" FontWeight="SemiBold" />
+                </StackPanel>
+                <Button x:Name="CheckUpdatesButton"
+                        Grid.Column="1"
+                        Classes="primary"
+                        MinWidth="118"
+                        Click="CheckUpdates_Click">
+                  <StackPanel Orientation="Horizontal" Spacing="7">
+                    <TextBlock Text="↻" FontSize="15" Foreground="{Binding $parent[Button].Foreground}" VerticalAlignment="Center" />
+                    <TextBlock x:Name="CheckUpdatesButtonText" Text="检查更新" Foreground="{Binding $parent[Button].Foreground}" VerticalAlignment="Center" />
+                  </StackPanel>
+                </Button>
+              </Grid>
+            </Border>
+
+            <Border x:Name="UpdateStatusPanel"
+                    Background="#171D19"
+                    BorderBrush="#303A33"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="11,9">
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="9">
+                <Ellipse x:Name="UpdateStatusIndicator" Width="8" Height="8" Fill="#78817B" VerticalAlignment="Center" />
+                <TextBlock x:Name="UpdateStatusText"
+                           Grid.Column="1"
+                           Text="点击“检查更新”获取最新版本信息。"
+                           Foreground="#9CA69F"
+                           TextWrapping="Wrap"
+                           VerticalAlignment="Center" />
+              </Grid>
+            </Border>
+
+            <ProgressBar x:Name="UpdateProgress"
+                         IsVisible="False"
+                         IsIndeterminate="True"
+                         Height="3" />
+          </StackPanel>
+        </Border>
+
+        <Border Classes="settings-card">
+          <Grid ColumnDefinitions="Auto,*" ColumnSpacing="13">
+            <Image Width="42" Height="42" Source="/Assets/rvc-studio-icon.png" Stretch="Uniform" />
+            <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+              <TextBlock Text="RVC Studio" FontSize="14" FontWeight="SemiBold" />
+              <TextBlock Text="实时 AI 变声工作台" Foreground="#9AA49D" FontSize="10.5" />
+              <TextBlock Text="音频处理始终在本机完成" Classes="muted" />
+            </StackPanel>
+          </Grid>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+
+    <Border Grid.Row="2" BorderBrush="#29302B" BorderThickness="0,1,0,0" Padding="20,12">
+      <Button HorizontalAlignment="Right" MinWidth="92" Click="Close_Click">关闭</Button>
+    </Border>
+  </Grid>
+</Window>

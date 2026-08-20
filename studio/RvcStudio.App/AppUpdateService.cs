@@ -32,7 +32,7 @@ public sealed class AppUpdateService : IDisposable
 
     public async Task<AppUpdateResult> CheckAsync(CancellationToken token = default)
     {
-        var currentVersion = GetCurrentVersion();
+        var currentVersion = CurrentVersion;
         var path = $"api/CloudSync/GetVersion?Client={Uri.EscapeDataString(Channel)}";
         using var response = await _client.GetAsync(path, token);
         var json = await response.Content.ReadAsStringAsync(token);
@@ -72,7 +72,7 @@ public sealed class AppUpdateService : IDisposable
             envelope.Data.Memo?.Trim() ?? string.Empty);
     }
 
-    private static Version GetCurrentVersion() =>
+    public static Version CurrentVersion =>
         Assembly.GetEntryAssembly()?.GetName().Version
         ?? Assembly.GetExecutingAssembly().GetName().Version
         ?? new Version(1, 0, 0);

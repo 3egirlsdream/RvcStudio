@@ -9,7 +9,7 @@ public sealed record AudioDevice(
     int DefaultSamplerate,
     bool IsDefault)
 {
-    public string DisplayName => $"{Name} · {Hostapi}";
+    public string DisplayName => Name;
 }
 
 public sealed record EngineCapabilities(
