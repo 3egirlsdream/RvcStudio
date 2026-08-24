@@ -55,6 +55,8 @@ class ControlServer:
             result = self.engine.device_payload()
         elif command == "refresh_devices":
             result = self.engine.refresh_devices()
+        elif command == "inspect_model":
+            result = self.engine.inspect_model(payload.get("pth_path", ""))
         elif command == "get_status":
             result = self.engine.status()
         elif command == "update_config":

@@ -18,6 +18,8 @@
 # Generated desktop and installer output
 /studio/RvcStudio.App/bin/
 /studio/RvcStudio.App/obj/
+/studio/RvcStudio.App.Tests/bin/
+/studio/RvcStudio.App.Tests/obj/
 /studio/publish/
 /packaging/output/
 /packaging/installer-assets/

@@ -42,6 +42,10 @@ Name: "chinesesimp"; MessagesFile: "vendor\inno\ChineseSimplified.isl"
 Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "快捷方式："
 Name: "vbcable"; Description: "安装标准 VB-CABLE 虚拟声卡（VB-Audio Donationware，可自愿捐赠）"; GroupDescription: "音频驱动："; Flags: checkedonce
 
+[Dirs]
+Name: "{app}\assets\weights"; Permissions: users-modify
+Name: "{app}\assets\indices"; Permissions: users-modify
+
 [Files]
 Source: "{#StageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "vendor\vb-cable\official-package\*"; DestDir: "{tmp}\rvcstudio-vbcable"; Flags: ignoreversion recursesubdirs createallsubdirs deleteafterinstall; Tasks: vbcable; Check: ShouldInstallVBCable

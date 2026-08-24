@@ -1,12 +1,13 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="RvcStudio.App.SettingsWindow"
-        Width="540" Height="470"
-        MinWidth="500" MinHeight="430"
-        CanResize="False"
+        Width="900" Height="760"
+        MinWidth="780" MinHeight="680"
+        CanResize="True"
         ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner"
         Title="RVC Studio 设置"
+        Opened="Window_Opened"
         Closed="Window_Closed">
   <Window.Styles>
     <Style Selector="Border.settings-card">
@@ -15,6 +16,14 @@
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="12" />
       <Setter Property="Padding" Value="16" />
+    </Style>
+    <Style Selector="TextBox.parameter-input">
+      <Setter Property="MinHeight" Value="34" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="ComboBox.parameter-input">
+      <Setter Property="MinHeight" Value="34" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
   </Window.Styles>
 
@@ -27,13 +36,124 @@
         <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
           <TextBlock Classes="eyebrow" Text="RVC STUDIO SETTINGS" />
           <TextBlock Text="设置" FontSize="19" FontWeight="SemiBold" />
-          <TextBlock Text="管理应用信息与软件更新" Classes="muted" />
+          <TextBlock Text="导入、导出模型并管理软件更新" Classes="muted" />
         </StackPanel>
       </Grid>
     </Border>
 
     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
       <StackPanel Margin="20,16" Spacing="12">
+        <Border Classes="settings-card">
+          <StackPanel Spacing="13">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+              <StackPanel Spacing="3">
+                <TextBlock Classes="section-title" Text="导入模型 ZIP" />
+                <TextBlock Classes="muted" Text="压缩包需包含一个 PTH、一个 INDEX，可选一个配置 JSON。" />
+              </StackPanel>
+              <Button Grid.Column="1" x:Name="ChooseImportZipButton" Classes="primary" Click="ChooseImportZip_Click" MinWidth="118">选择 ZIP</Button>
+            </Grid>
+
+            <Grid ColumnDefinitions="100,*" ColumnSpacing="10">
+              <TextBlock Classes="label" Text="压缩包" VerticalAlignment="Center" />
+              <TextBox Grid.Column="1"
+                       x:Name="ImportZipPathText"
+                       Classes="parameter-input"
+                       IsReadOnly="True"
+                       PlaceholderText="尚未选择压缩包" />
+            </Grid>
+
+            <StackPanel x:Name="ImportPreviewPanel" IsVisible="False" Spacing="12">
+              <Border Classes="inset" Padding="12">
+                <Grid ColumnDefinitions="100,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="5">
+                  <TextBlock Classes="label" Text="检测到 PTH" />
+                  <TextBlock Grid.Column="1" x:Name="ImportPthText" TextWrapping="Wrap" />
+                  <TextBlock Grid.Row="1" Classes="label" Text="检测到 INDEX" />
+                  <TextBlock Grid.Row="1" Grid.Column="1" x:Name="ImportIndexText" TextWrapping="Wrap" />
+                  <TextBlock Grid.Row="2" Classes="label" Text="配置 JSON" />
+                  <TextBlock Grid.Row="2" Grid.Column="1" x:Name="ImportJsonText" TextWrapping="Wrap" />
+                </Grid>
+              </Border>
+
+              <Grid ColumnDefinitions="100,*" ColumnSpacing="10">
+                <TextBlock Classes="label" Text="导入名称" VerticalAlignment="Center" />
+                <TextBox Grid.Column="1" x:Name="ImportModelNameText" Classes="parameter-input" PlaceholderText="模型文件主名" />
+              </Grid>
+
+              <TextBlock Classes="label" Text="模型单独参数" />
+              <Grid ColumnDefinitions="*,*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="9">
+                <StackPanel Spacing="4">
+                  <TextBlock Classes="muted" Text="音高算法" />
+                  <ComboBox x:Name="ImportPitchMethodCombo" Classes="parameter-input" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Spacing="4">
+                  <TextBlock Classes="muted" Text="Pitch · -16 ~ 16" />
+                  <TextBox x:Name="ImportPitchText" Classes="parameter-input" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Spacing="4">
+                  <TextBlock Classes="muted" Text="Formant · -2 ~ 2" />
+                  <TextBox x:Name="ImportFormantText" Classes="parameter-input" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" Spacing="4">
+                  <TextBlock Classes="muted" Text="Index · 0 ~ 1" />
+                  <TextBox x:Name="ImportIndexRateText" Classes="parameter-input" />
+                </StackPanel>
+                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="4">
+                  <TextBlock Classes="muted" Text="RMS · 0 ~ 1" />
+                  <TextBox x:Name="ImportRmsMixRateText" Classes="parameter-input" />
+                </StackPanel>
+                <StackPanel Grid.Row="1" Grid.Column="2" Spacing="4">
+                  <TextBlock Classes="muted" Text="门限 · -80 ~ -20" />
+                  <TextBox x:Name="ImportThresholdText" Classes="parameter-input" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="2" Spacing="4">
+                  <TextBlock Classes="muted" Text="分块秒数 · 0.02 ~ 1.5" />
+                  <TextBox x:Name="ImportBlockTimeText" Classes="parameter-input" />
+                </StackPanel>
+                <StackPanel Grid.Row="2" Grid.Column="1" Spacing="4">
+                  <TextBlock Classes="muted" Text="交叉淡化 · 0.01 ~ 0.15" />
+                  <TextBox x:Name="ImportCrossfadeText" Classes="parameter-input" />
+                </StackPanel>
+                <StackPanel Grid.Row="2" Grid.Column="2" Spacing="4">
+                  <TextBlock Classes="muted" Text="额外推理 · 0.05 ~ 5" />
+                  <TextBox x:Name="ImportExtraTimeText" Classes="parameter-input" />
+                </StackPanel>
+              </Grid>
+
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <TextBlock x:Name="ImportStatusText" Foreground="#9CA69F" TextWrapping="Wrap" VerticalAlignment="Center" />
+                <Button Grid.Column="1" x:Name="ImportButton" Classes="primary" Click="ImportModel_Click" MinWidth="118">确认导入</Button>
+              </Grid>
+              <ProgressBar x:Name="ImportProgress" IsVisible="False" IsIndeterminate="True" Height="3" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="settings-card">
+          <StackPanel Spacing="12">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+              <StackPanel Spacing="3">
+                <TextBlock Classes="section-title" Text="批量导出模型" />
+                <TextBlock Classes="muted" Text="每个勾选模型生成一个同名 ZIP；缺少 INDEX 的模型不可导出。" />
+              </StackPanel>
+              <Button Grid.Column="1" x:Name="RefreshModelsButton" Click="RefreshModels_Click" MinWidth="96">刷新列表</Button>
+            </Grid>
+
+            <Border Classes="inset" Padding="10">
+              <ScrollViewer MaxHeight="230" VerticalScrollBarVisibility="Auto">
+                <StackPanel x:Name="ExportModelList" Spacing="4" />
+              </ScrollViewer>
+            </Border>
+
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+              <TextBlock x:Name="ExportStatusText" Text="勾选模型后选择导出文件夹。" Foreground="#9CA69F" TextWrapping="Wrap" VerticalAlignment="Center" />
+              <Button Grid.Column="1" x:Name="ExportButton" Classes="primary" Click="ExportModels_Click" MinWidth="138">导出所选模型</Button>
+            </Grid>
+            <ProgressBar x:Name="ExportProgress" IsVisible="False" Minimum="0" Maximum="1" Height="3" />
+          </StackPanel>
+        </Border>
+
         <Border Classes="settings-card">
           <StackPanel Spacing="13">
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
@@ -52,11 +172,7 @@
                   <TextBlock Classes="label" Text="当前版本" />
                   <TextBlock x:Name="CurrentVersionText" FontSize="18" FontWeight="SemiBold" />
                 </StackPanel>
-                <Button x:Name="CheckUpdatesButton"
-                        Grid.Column="1"
-                        Classes="primary"
-                        MinWidth="118"
-                        Click="CheckUpdates_Click">
+                <Button x:Name="CheckUpdatesButton" Grid.Column="1" Classes="primary" MinWidth="118" Click="CheckUpdates_Click">
                   <StackPanel Orientation="Horizontal" Spacing="7">
                     <TextBlock Text="↻" FontSize="15" Foreground="{Binding $parent[Button].Foreground}" VerticalAlignment="Center" />
                     <TextBlock x:Name="CheckUpdatesButtonText" Text="检查更新" Foreground="{Binding $parent[Button].Foreground}" VerticalAlignment="Center" />
@@ -65,39 +181,14 @@
               </Grid>
             </Border>
 
-            <Border x:Name="UpdateStatusPanel"
-                    Background="#171D19"
-                    BorderBrush="#303A33"
-                    BorderThickness="1"
-                    CornerRadius="8"
-                    Padding="11,9">
+            <Border x:Name="UpdateStatusPanel" Background="#171D19" BorderBrush="#303A33" BorderThickness="1" CornerRadius="8" Padding="11,9">
               <Grid ColumnDefinitions="Auto,*" ColumnSpacing="9">
                 <Ellipse x:Name="UpdateStatusIndicator" Width="8" Height="8" Fill="#78817B" VerticalAlignment="Center" />
-                <TextBlock x:Name="UpdateStatusText"
-                           Grid.Column="1"
-                           Text="点击“检查更新”获取最新版本信息。"
-                           Foreground="#9CA69F"
-                           TextWrapping="Wrap"
-                           VerticalAlignment="Center" />
+                <TextBlock x:Name="UpdateStatusText" Grid.Column="1" Text="点击“检查更新”获取最新版本信息。" Foreground="#9CA69F" TextWrapping="Wrap" VerticalAlignment="Center" />
               </Grid>
             </Border>
-
-            <ProgressBar x:Name="UpdateProgress"
-                         IsVisible="False"
-                         IsIndeterminate="True"
-                         Height="3" />
+            <ProgressBar x:Name="UpdateProgress" IsVisible="False" IsIndeterminate="True" Height="3" />
           </StackPanel>
-        </Border>
-
-        <Border Classes="settings-card">
-          <Grid ColumnDefinitions="Auto,*" ColumnSpacing="13">
-            <Image Width="42" Height="42" Source="/Assets/rvc-studio-icon.png" Stretch="Uniform" />
-            <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
-              <TextBlock Text="RVC Studio" FontSize="14" FontWeight="SemiBold" />
-              <TextBlock Text="实时 AI 变声工作台" Foreground="#9AA49D" FontSize="10.5" />
-              <TextBlock Text="音频处理始终在本机完成" Classes="muted" />
-            </StackPanel>
-          </Grid>
         </Border>
       </StackPanel>
     </ScrollViewer>

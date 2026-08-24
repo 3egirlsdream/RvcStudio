@@ -17,12 +17,15 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
     }
 
     private readonly EngineClient _engine = new();
+    private readonly ModelProfileService _modelProfiles = new();
+    private ModelPackageService? _modelPackages;
     private readonly DailyUsageQuotaService _usageQuota = new();
     private readonly SemaphoreSlim _quotaUpdateGate = new(1, 1);
     public AccountService Account { get; } = new();
     private readonly DispatcherTimer _statusTimer;
     private CancellationTokenSource? _deviceSelectionCts;
     private CancellationTokenSource? _configApplyCts;
+    private CancellationTokenSource? _modelSelectionCts;
     private CancellationTokenSource? _toastCts;
     private bool _polling;
     private bool _isDisposing;
@@ -30,6 +33,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
     private bool _interactiveReady;
     private bool _applyingDeviceSelection;
     private bool _suppressConfigApply;
+    private bool _suppressModelChoiceSync;
+    private bool _suppressProfileTracking;
     private ConfigApplyKind _pendingConfigApplyKind;
     private string _lastAppliedInputId = string.Empty;
     private string _lastAppliedOutputId = string.Empty;
@@ -39,21 +44,22 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
     private string _gpuText = "正在检测 GPU…";
     private string _modelPath = string.Empty;
     private string _indexPath = string.Empty;
+    private ModelChoice? _selectedModelChoice;
     private AudioDevice? _selectedInput;
     private AudioDevice? _selectedOutput;
     private string _pitchMethod = "fcpe";
-    private double _pitch;
+    private double _pitch = 12;
     private double _formant;
     private double _indexRate;
-    private double _rmsMixRate;
+    private double _rmsMixRate = 0.5;
     private double _threshold = -60;
-    private double _blockTime = 0.25;
-    private double _crossfadeLength = 0.05;
-    private double _extraTime = 2.5;
+    private double _blockTime = 0.13;
+    private double _crossfadeLength = 0.08;
+    private double _extraTime = 2.01;
     private bool _inputNoiseReduce;
     private bool _outputNoiseReduce;
     private bool _wasapiExclusive;
-    private bool _useDeviceSampleRate;
+    private bool _useDeviceSampleRate = true;
     private double _inputMeter;
     private double _outputMeter;
     private string _timingText = "延迟 -- ms · 推理 -- ms";
@@ -73,6 +79,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
     private IBrush _usageQuotaBrush = new SolidColorBrush(Color.Parse("#E7C66A"));
     private bool _quotaExhausted;
     private bool _quotaIntegrityIssue;
+    private string _activeModelId = string.Empty;
+    private string _modelDetailsText = "选择模型后自动识别版本、采样率与 HuBERT 兼容信息";
+    private string _modelRecommendationText = "模型参数将实时保存到模型旁的 JSON 配置";
+    private bool _isRestoreDefaultsVisible;
 
     public MainViewModel()
     {
@@ -85,6 +95,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
 
     public ObservableCollection<AudioDevice> Inputs { get; } = [];
     public ObservableCollection<AudioDevice> Outputs { get; } = [];
+    public ObservableCollection<ModelChoice> ModelChoices { get; } = [];
     public IReadOnlyList<string> PitchMethods { get; } = ["fcpe", "rmvpe", "pm"];
 
     public string StatusText { get => _statusText; private set => Set(ref _statusText, value); }
@@ -96,22 +107,39 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
         set
         {
             if (!Set(ref _modelPath, value)) return;
-            if (!_suppressConfigApply) TrySelectMatchingIndex(value);
-            QueueConfigApply(ConfigApplyKind.RestartRequired);
+            if (!_suppressConfigApply && !_suppressModelChoiceSync)
+            {
+                IndexPath = FindMatchingIndexPath(value) ?? string.Empty;
+                SyncSelectedModelChoice();
+            }
+            if (_interactiveReady && !_suppressConfigApply)
+            {
+                QueueModelSelectionApply();
+            }
         }
     }
     public string IndexPath { get => _indexPath; set { if (Set(ref _indexPath, value)) QueueConfigApply(ConfigApplyKind.RestartRequired); } }
+    public ModelChoice? SelectedModelChoice
+    {
+        get => _selectedModelChoice;
+        set
+        {
+            if (!Set(ref _selectedModelChoice, value) || _suppressModelChoiceSync || value is null) return;
+            SelectModelChoice(value);
+        }
+    }
     public AudioDevice? SelectedInput { get => _selectedInput; set => Set(ref _selectedInput, value); }
     public AudioDevice? SelectedOutput { get => _selectedOutput; set => Set(ref _selectedOutput, value); }
-    public string PitchMethod { get => _pitchMethod; set { if (Set(ref _pitchMethod, value)) QueueConfigApply(ConfigApplyKind.Hot); } }
-    public double Pitch { get => _pitch; set { if (Set(ref _pitch, value)) QueueConfigApply(ConfigApplyKind.Hot); } }
-    public double Formant { get => _formant; set { if (Set(ref _formant, value)) QueueConfigApply(ConfigApplyKind.Hot); } }
-    public double IndexRate { get => _indexRate; set { if (Set(ref _indexRate, value)) QueueConfigApply(ConfigApplyKind.Hot); } }
-    public double RmsMixRate { get => _rmsMixRate; set { if (Set(ref _rmsMixRate, value)) QueueConfigApply(ConfigApplyKind.Hot); } }
-    public double Threshold { get => _threshold; set { if (Set(ref _threshold, value)) QueueConfigApply(ConfigApplyKind.Hot); } }
-    public double BlockTime { get => _blockTime; set { if (Set(ref _blockTime, value)) QueueConfigApply(ConfigApplyKind.RestartRequired); } }
-    public double CrossfadeLength { get => _crossfadeLength; set { if (Set(ref _crossfadeLength, value)) QueueConfigApply(ConfigApplyKind.RestartRequired); } }
-    public double ExtraTime { get => _extraTime; set { if (Set(ref _extraTime, value)) QueueConfigApply(ConfigApplyKind.RestartRequired); } }
+    public string PitchMethod { get => _pitchMethod; set { if (Set(ref _pitchMethod, value)) { OnPropertyChanged(nameof(PitchMethodDisplay)); ModelSettingChanged(ConfigApplyKind.Hot); } } }
+    public string PitchMethodDisplay => PitchMethod.ToUpperInvariant();
+    public double Pitch { get => _pitch; set { if (Set(ref _pitch, value)) ModelSettingChanged(ConfigApplyKind.Hot); } }
+    public double Formant { get => _formant; set { if (Set(ref _formant, value)) ModelSettingChanged(ConfigApplyKind.Hot); } }
+    public double IndexRate { get => _indexRate; set { if (Set(ref _indexRate, value)) ModelSettingChanged(ConfigApplyKind.Hot); } }
+    public double RmsMixRate { get => _rmsMixRate; set { if (Set(ref _rmsMixRate, value)) ModelSettingChanged(ConfigApplyKind.Hot); } }
+    public double Threshold { get => _threshold; set { if (Set(ref _threshold, value)) ModelSettingChanged(ConfigApplyKind.Hot); } }
+    public double BlockTime { get => _blockTime; set { if (Set(ref _blockTime, value)) ModelSettingChanged(ConfigApplyKind.RestartRequired); } }
+    public double CrossfadeLength { get => _crossfadeLength; set { if (Set(ref _crossfadeLength, value)) ModelSettingChanged(ConfigApplyKind.RestartRequired); } }
+    public double ExtraTime { get => _extraTime; set { if (Set(ref _extraTime, value)) ModelSettingChanged(ConfigApplyKind.RestartRequired); } }
     public bool InputNoiseReduce { get => _inputNoiseReduce; set { if (Set(ref _inputNoiseReduce, value)) QueueConfigApply(ConfigApplyKind.Hot); } }
     public bool OutputNoiseReduce { get => _outputNoiseReduce; set { if (Set(ref _outputNoiseReduce, value)) QueueConfigApply(ConfigApplyKind.Hot); } }
     public bool WasapiExclusive { get => _wasapiExclusive; set { if (Set(ref _wasapiExclusive, value)) QueueConfigApply(ConfigApplyKind.RestartRequired); } }
@@ -155,27 +183,36 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
         }
     }
     public string AccountInitial => Account.Account?.Initial ?? "R";
+    public string ModelDetailsText { get => _modelDetailsText; private set => Set(ref _modelDetailsText, value); }
+    public string ModelRecommendationText { get => _modelRecommendationText; private set => Set(ref _modelRecommendationText, value); }
+    public bool IsRestoreDefaultsVisible { get => _isRestoreDefaultsVisible; private set => Set(ref _isRestoreDefaultsVisible, value); }
 
-    public string GetModelBrowseDirectory() => ResolveBrowseDirectory(ModelPath, "assets", "weights");
-
-    public string GetIndexBrowseDirectory() => ResolveBrowseDirectory(IndexPath, "assets", "indices");
+    internal ModelPackageService? ModelPackages => _modelPackages;
 
     public void ReportUpdateCheckFailure(Exception exception) =>
         AppendLog($"检查更新失败：{exception.Message}");
 
     public async Task InitializeAsync()
     {
+        await _modelProfiles.InitializeAsync();
+        if (!string.IsNullOrWhiteSpace(_modelProfiles.MigrationWarning))
+        {
+            AppendLog(_modelProfiles.MigrationWarning);
+        }
         var accountInitialization = Account.InitializeAsync();
         var quotaInitialization = _usageQuota.InitializeAsync();
         try
         {
             await _engine.StartAsync();
+            _modelPackages = new ModelPackageService(_engine.RvcRoot, _modelProfiles);
             var capabilities = await _engine.GetCapabilitiesAsync();
             GpuText = capabilities.CudaAvailable
                 ? $"{capabilities.GpuName} · CUDA {capabilities.CudaVersion}"
                 : "未检测到可用 CUDA GPU";
             await ReloadDevicesAsync(false);
             ApplyStatus(await _engine.GetStatusAsync(), applySavedConfig: true);
+            RefreshModelChoices();
+            await LoadSelectedModelProfileAsync();
             // Persist the validated selections as well, so a missing model or
             // disconnected audio device is not retried on every launch.
             await _engine.UpdateConfigAsync(BuildConfig());
@@ -314,6 +351,205 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
         _ = ApplyDeviceSelectionAfterDelayAsync(_deviceSelectionCts.Token);
     }
 
+    public void RestoreModelDefaults()
+    {
+        if (string.IsNullOrWhiteSpace(_activeModelId) || !IsRestoreDefaultsVisible) return;
+        _suppressConfigApply = true;
+        _suppressProfileTracking = true;
+        try
+        {
+            ApplyModelTuning(ModelTuningSettings.AppDefaults);
+        }
+        finally
+        {
+            _suppressProfileTracking = false;
+            _suppressConfigApply = false;
+        }
+        TrackCurrentModelSettings();
+        QueueConfigApply(ConfigApplyKind.RestartRequired);
+        ShowToast("已恢复程序全局默认，并删除当前模型的单独配置。", "#253A20");
+    }
+
+    private void ModelSettingChanged(ConfigApplyKind? kind)
+    {
+        if (!_suppressProfileTracking)
+        {
+            TrackCurrentModelSettings();
+        }
+        if (kind is not null)
+        {
+            QueueConfigApply(kind.Value);
+        }
+    }
+
+    private void TrackCurrentModelSettings()
+    {
+        var current = CaptureModelTuning();
+        if (!string.IsNullOrWhiteSpace(_activeModelId))
+        {
+            _modelProfiles.UpdateCurrent(_activeModelId, current);
+        }
+        IsRestoreDefaultsVisible = !string.IsNullOrWhiteSpace(_activeModelId) && !current.IsAppDefault;
+        if (!string.IsNullOrWhiteSpace(_activeModelId))
+        {
+            UpdateModelSettingsSummary(current);
+        }
+    }
+
+    private void QueueModelSelectionApply()
+    {
+        _configApplyCts?.Cancel();
+        _modelSelectionCts?.Cancel();
+        _modelSelectionCts?.Dispose();
+        _modelSelectionCts = new CancellationTokenSource();
+        _ = LoadSelectedModelProfileAfterDelayAsync(_modelSelectionCts.Token);
+    }
+
+    private async Task LoadSelectedModelProfileAfterDelayAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(300, cancellationToken);
+            await LoadSelectedModelProfileAsync(cancellationToken);
+            await _engine.UpdateConfigAsync(BuildConfig(), cancellationToken);
+            if (IsRunning)
+            {
+                ShowToast("模型与单独参数已切换。请停止后重新开始实时变声以应用。", "#4A381D");
+                StatusText = "模型设置待重启实时流后应用";
+                StatusBrush = new SolidColorBrush(Color.Parse("#E7C66A"));
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // A later model path superseded this selection.
+        }
+        catch (Exception exception)
+        {
+            SetError("读取模型配置失败", exception);
+        }
+    }
+
+    private async Task LoadSelectedModelProfileAsync(CancellationToken cancellationToken = default)
+    {
+        var resolvedModel = ResolveExistingFile(ModelPath, ".pth");
+        if (resolvedModel is null)
+        {
+            _activeModelId = string.Empty;
+            ModelDetailsText = string.IsNullOrWhiteSpace(ModelPath)
+                ? "选择模型后自动识别版本、采样率与 HuBERT 兼容信息"
+                : "模型路径无效，尚未读取模型信息";
+            ModelRecommendationText = "模型参数将实时保存到模型旁的 JSON 配置";
+            IsRestoreDefaultsVisible = false;
+            return;
+        }
+
+        await _modelProfiles.SaveAsync(cancellationToken);
+        _activeModelId = string.Empty;
+        IsRestoreDefaultsVisible = false;
+        var inspection = await _engine.InspectModelAsync(resolvedModel, cancellationToken);
+        var session = await _modelProfiles.OpenAsync(
+            resolvedModel,
+            inspection,
+            cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        _suppressConfigApply = true;
+        _suppressProfileTracking = true;
+        try
+        {
+            _activeModelId = session.ModelId;
+            ApplyModelTuning(session.Current);
+            ApplyModelPresentation(session);
+        }
+        finally
+        {
+            _suppressProfileTracking = false;
+            _suppressConfigApply = false;
+        }
+        TrackCurrentModelSettings();
+    }
+
+    private void ApplyModelPresentation(ModelProfileSession session)
+    {
+        var metadata = session.Metadata;
+        var sampleRate = metadata.SampleRate > 0
+            ? metadata.SampleRate % 1000 == 0
+                ? $"{metadata.SampleRate / 1000} kHz"
+                : $"{metadata.SampleRate / 1000d:0.0} kHz"
+            : "采样率未知";
+        var pitchSupport = metadata.SupportsPitch ? "支持音高" : "不带音高";
+        ModelDetailsText = $"{metadata.Version.ToUpperInvariant()} · {sampleRate} · {pitchSupport} · {metadata.Hubert} · 语言：{metadata.Language} · 能力：{metadata.SupportStatus}";
+
+        UpdateModelSettingsSummary(session.Current);
+    }
+
+    private void UpdateModelSettingsSummary(ModelTuningSettings settings)
+    {
+        var source = settings.IsAppDefault
+            ? "程序全局默认"
+            : "模型单独配置";
+        ModelRecommendationText = $"{source}：{settings.PitchMethod.ToUpperInvariant()} · Pitch {settings.Pitch:0} · Index {settings.IndexRate:0.00} · RMS {settings.RmsMixRate:0.00} · 门限 {settings.Threshold:0} · 分块 {settings.BlockTime:0.00}s · 淡化 {settings.CrossfadeLength:0.00}s · 额外 {settings.ExtraTime:0.00}s";
+    }
+
+    internal bool IsCurrentModelPath(string modelPath)
+    {
+        try
+        {
+            var current = ResolveExistingFile(ModelPath, ".pth");
+            return current is not null &&
+                   string.Equals(Path.GetFullPath(current), Path.GetFullPath(modelPath), StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception exception) when (exception is ArgumentException or IOException or NotSupportedException)
+        {
+            return false;
+        }
+    }
+
+    internal async Task PrepareModelReplacementAsync(
+        string modelPath,
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsCurrentModelPath(modelPath)) return;
+        if (IsRunning) throw new InvalidOperationException("实时变声运行中不能替换当前模型，请先停止。");
+        _configApplyCts?.Cancel();
+        await _modelProfiles.SaveAsync(cancellationToken);
+    }
+
+    internal async Task ReloadModelAfterImportAsync(string modelPath, CancellationToken cancellationToken = default)
+    {
+        var replacesCurrentModel = IsCurrentModelPath(modelPath);
+        RefreshModelChoices();
+        if (!replacesCurrentModel) return;
+        if (IsRunning) throw new InvalidOperationException("实时变声运行中不能替换当前模型，请先停止。");
+        await LoadSelectedModelProfileAsync(cancellationToken);
+        await _engine.UpdateConfigAsync(BuildConfig(), cancellationToken);
+        ShowToast("当前模型已替换并重新加载。", "#253A20");
+    }
+
+    private ModelTuningSettings CaptureModelTuning() => new(
+        PitchMethod,
+        Pitch,
+        Formant,
+        IndexRate,
+        RmsMixRate,
+        Threshold,
+        BlockTime,
+        CrossfadeLength,
+        ExtraTime);
+
+    private void ApplyModelTuning(ModelTuningSettings settings)
+    {
+        PitchMethod = settings.PitchMethod;
+        Pitch = settings.Pitch;
+        Formant = settings.Formant;
+        IndexRate = settings.IndexRate;
+        RmsMixRate = settings.RmsMixRate;
+        Threshold = settings.Threshold;
+        BlockTime = settings.BlockTime;
+        CrossfadeLength = settings.CrossfadeLength;
+        ExtraTime = settings.ExtraTime;
+    }
+
     private void QueueConfigApply(ConfigApplyKind kind)
     {
         if (!_interactiveReady || _suppressConfigApply)
@@ -336,6 +572,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
             await Task.Delay(180, cancellationToken);
             var kind = _pendingConfigApplyKind;
             _pendingConfigApplyKind = ConfigApplyKind.Hot;
+            await _modelProfiles.SaveAsync(cancellationToken);
             await _engine.UpdateConfigAsync(BuildConfig(), cancellationToken);
             if (kind == ConfigApplyKind.RestartRequired && IsRunning)
             {
@@ -620,7 +857,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
                 : string.Empty;
             if (!string.IsNullOrWhiteSpace(ModelPath) && string.IsNullOrWhiteSpace(IndexPath))
             {
-                TrySelectMatchingIndex(ModelPath);
+                IndexPath = FindMatchingIndexPath(ModelPath) ?? string.Empty;
             }
             PitchMethod = GetString(config, "f0method", PitchMethod);
             Pitch = GetDouble(config, "pitch", Pitch);
@@ -804,19 +1041,128 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
         AppContext.BaseDirectory,
     }.Where(path => !string.IsNullOrWhiteSpace(path)).Distinct(StringComparer.OrdinalIgnoreCase);
 
-    private void TrySelectMatchingIndex(string modelPath)
+    private void SelectModelChoice(ModelChoice choice)
+    {
+        _suppressModelChoiceSync = true;
+        try
+        {
+            IndexPath = choice.IndexPath;
+            ModelPath = choice.ModelPath;
+        }
+        finally
+        {
+            _suppressModelChoiceSync = false;
+        }
+    }
+
+    internal void RefreshModelChoices()
+    {
+        if (_modelPackages is null) return;
+
+        var currentModelPath = ResolveExistingFile(ModelPath, ".pth");
+        var managedModels = _modelPackages.ScanModels();
+        var wasSuppressingConfigApply = _suppressConfigApply;
+        _suppressConfigApply = true;
+        _suppressModelChoiceSync = true;
+        try
+        {
+            SelectedModelChoice = null;
+            ModelChoices.Clear();
+            foreach (var model in managedModels)
+            {
+                ModelChoices.Add(new ModelChoice(
+                    model.Name,
+                    model.ModelPath,
+                    model.IndexPath ?? string.Empty,
+                    IsExternal: false));
+            }
+
+            var selected = currentModelPath is null
+                ? null
+                : ModelChoices.FirstOrDefault(choice => PathsEqual(choice.ModelPath, currentModelPath));
+            if (selected is null && currentModelPath is not null)
+            {
+                selected = new ModelChoice(
+                    Path.GetFileNameWithoutExtension(currentModelPath),
+                    currentModelPath,
+                    FindMatchingIndexPath(currentModelPath) ?? string.Empty,
+                    IsExternal: true);
+                ModelChoices.Add(selected);
+            }
+            SelectedModelChoice = selected;
+            if (selected is not null)
+            {
+                IndexPath = selected.IndexPath;
+            }
+        }
+        finally
+        {
+            _suppressModelChoiceSync = false;
+            _suppressConfigApply = wasSuppressingConfigApply;
+        }
+    }
+
+    private void SyncSelectedModelChoice()
+    {
+        var currentModelPath = ResolveExistingFile(ModelPath, ".pth");
+        _suppressModelChoiceSync = true;
+        try
+        {
+            if (currentModelPath is null)
+            {
+                SelectedModelChoice = null;
+                return;
+            }
+
+            foreach (var externalChoice in ModelChoices
+                         .Where(choice => choice.IsExternal && !PathsEqual(choice.ModelPath, currentModelPath))
+                         .ToList())
+            {
+                ModelChoices.Remove(externalChoice);
+            }
+            var selected = ModelChoices.FirstOrDefault(choice => PathsEqual(choice.ModelPath, currentModelPath));
+            if (selected is null)
+            {
+                selected = new ModelChoice(
+                    Path.GetFileNameWithoutExtension(currentModelPath),
+                    currentModelPath,
+                    IndexPath,
+                    IsExternal: true);
+                ModelChoices.Add(selected);
+            }
+            SelectedModelChoice = selected;
+        }
+        finally
+        {
+            _suppressModelChoiceSync = false;
+        }
+    }
+
+    private static bool PathsEqual(string left, string right)
+    {
+        try
+        {
+            return string.Equals(Path.GetFullPath(left), Path.GetFullPath(right), StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception exception) when (exception is ArgumentException or IOException or NotSupportedException)
+        {
+            return false;
+        }
+    }
+
+    private string? FindMatchingIndexPath(string modelPath)
     {
         if (string.IsNullOrWhiteSpace(modelPath) ||
             !string.Equals(Path.GetExtension(modelPath), ".pth", StringComparison.OrdinalIgnoreCase))
         {
-            return;
+            return null;
         }
 
         try
         {
             var modelDirectory = Path.GetDirectoryName(modelPath);
             var modelName = Path.GetFileNameWithoutExtension(modelPath);
-            if (string.IsNullOrWhiteSpace(modelDirectory) || string.IsNullOrWhiteSpace(modelName)) return;
+            if (string.IsNullOrWhiteSpace(modelDirectory) || string.IsNullOrWhiteSpace(modelName)) return null;
 
             var searchDirectories = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
@@ -828,26 +1174,20 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
             {
                 searchDirectories.Add(Path.Combine(modelDirectoryParent, "indices"));
             }
-            var currentIndexDirectory = Path.GetDirectoryName(IndexPath);
-            if (!string.IsNullOrWhiteSpace(currentIndexDirectory))
-            {
-                searchDirectories.Add(currentIndexDirectory);
-            }
             searchDirectories.Add(ResolveBrowseDirectory(string.Empty, "assets", "indices"));
 
             foreach (var directory in searchDirectories)
             {
                 var candidate = Path.Combine(directory, $"{modelName}.index");
                 if (!File.Exists(candidate)) continue;
-                IndexPath = candidate;
-                AppendLog($"已自动匹配同名索引：{Path.GetFileName(candidate)}");
-                return;
+                return Path.GetFullPath(candidate);
             }
         }
         catch (Exception exception) when (exception is ArgumentException or IOException or UnauthorizedAccessException or NotSupportedException)
         {
-            // An invalid or inaccessible model path leaves the currently selected index unchanged.
+            // An invalid or inaccessible model path is treated as having no matching index.
         }
+        return null;
     }
 
     private string ResolveBrowseDirectory(string selectedPath, params string[] bundledDirectoryParts)
@@ -989,6 +1329,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
         _deviceSelectionCts?.Dispose();
         _configApplyCts?.Cancel();
         _configApplyCts?.Dispose();
+        _modelSelectionCts?.Cancel();
+        _modelSelectionCts?.Dispose();
         _toastCts?.Cancel();
         _toastCts?.Dispose();
         Account.Changed -= Account_Changed;
@@ -1086,6 +1428,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
             // Flush the latest UI selections even when the debounce window has
             // not elapsed yet (for example, when the app is closed immediately).
             using var configTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            TrackCurrentModelSettings();
+            await _modelProfiles.SaveAsync(configTimeout.Token);
             await _engine.UpdateConfigAsync(BuildConfig(), configTimeout.Token);
         }
         catch (Exception exception)

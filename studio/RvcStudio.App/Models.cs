@@ -20,6 +20,21 @@ public sealed record EngineCapabilities(
     bool FcpeAvailable,
     bool CudaGraphEnabled);
 
+public sealed record ModelInspection(
+    string Version,
+    int SampleRate,
+    bool SupportsPitch,
+    string Info);
+
+public sealed record ModelChoice(
+    string Name,
+    string ModelPath,
+    string IndexPath,
+    bool IsExternal)
+{
+    public string DisplayName => IsExternal ? $"外部 · {Name}" : Name;
+}
+
 public sealed record EngineStatus(
     bool Running,
     bool RestartRequired,

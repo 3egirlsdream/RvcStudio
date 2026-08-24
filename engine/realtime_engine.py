@@ -37,16 +37,16 @@ from tools.torchgate import TorchGate
 class RealtimeConfig:
     pth_path: str = ""
     index_path: str = ""
-    pitch: int = 0
+    pitch: int = 12
     formant: float = 0.0
-    sr_type: str = "sr_model"
-    block_time: float = 0.25
+    sr_type: str = "sr_device"
+    block_time: float = 0.13
     threshold: int = -60
-    crossfade_length: float = 0.05
-    extra_time: float = 2.5
+    crossfade_length: float = 0.08
+    extra_time: float = 2.01
     input_noise_reduce: bool = False
     output_noise_reduce: bool = False
-    rms_mix_rate: float = 0.0
+    rms_mix_rate: float = 0.5
     index_rate: float = 0.0
     f0method: str = "fcpe"
     hostapi: str = ""
@@ -146,6 +146,21 @@ class RealtimeEngine:
             "gpu_name": gpu_name,
             "fcpe_available": True,
             "cuda_graph_enabled": cuda_graph_enabled(self.config.device),
+        }
+
+    def inspect_model(self, model_path: str) -> dict[str, Any]:
+        """Read non-tensor model metadata without constructing the synthesizer."""
+        path = Path(model_path).resolve()
+        if path.suffix.lower() != ".pth" or not path.is_file():
+            raise FileNotFoundError(f"找不到音色模型：{model_path}")
+        checkpoint = torch.load(path, map_location="cpu", weights_only=True)
+        config = checkpoint.get("config") or []
+        sample_rate = int(config[-1]) if config else 0
+        return {
+            "version": str(checkpoint.get("version", "v1")),
+            "sample_rate": sample_rate,
+            "supports_pitch": bool(checkpoint.get("f0", 1)),
+            "info": str(checkpoint.get("info", "") or ""),
         }
 
     def refresh_devices(self) -> dict[str, Any]:

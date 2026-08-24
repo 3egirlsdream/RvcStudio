@@ -97,6 +97,8 @@ assets/
     └── my-voice.index
 ```
 
+也可以打开“设置 → 模型管理”导入 ZIP。压缩包必须包含一个 `.pth`、一个 `.index`，可选一个配置 JSON；导入时可以统一重命名两种文件并直接填写模型参数。模型管理页支持勾选多个模型，向指定文件夹分别导出同名 ZIP。
+
 ### 2. 配置音频路由
 
 标准 VB-CABLE 的推荐路由如下：
@@ -137,6 +139,39 @@ assets/
 | 设备采样率 | 使用输入设备默认采样率而非模型采样率 | 遇到设备不支持模型采样率时启用 |
 
 不同模型、麦克风、声卡和 GPU 的最佳参数不同。建议先确认默认参数下链路正常，再一次只修改一个参数。
+
+### 每模型单独配置
+
+主界面的模型选择使用下拉列表读取 `assets/weights` 顶层 PTH，并在后台自动匹配 `assets/indices` 中的同名 INDEX；INDEX 不作为单独选项显示，外部模型请先通过设置页导入。
+
+RVC Studio 的程序全局默认参数固定不变。修改音高、Formant、索引、响度或缓冲参数后，会实时写入 PTH 旁的 `<模型名>.rvcstudio.json`；切换回来时自动恢复。九项模型参数全部等于程序默认值时不会保留单独 JSON，点击“恢复默认”也会删除该文件。输入输出设备、WASAPI 和降噪等设备设置仍为全局运行设置。
+
+导入包或模型发布者可以提供同名配置，例如 `my-model.rvcstudio.json`：
+
+```json
+{
+  "schemaVersion": 1,
+  "model": {
+    "language": "中文",
+    "baseModel": "RVC_2",
+    "sampleRate": "44K",
+    "hubertModel": "英文 Hubert",
+    "supported": true
+  },
+  "recommended": {
+    "f0method": "rmvpe",
+    "threshold": -60,
+    "pitch": 13,
+    "indexRate": 0.0,
+    "volumeFactor": 0.86,
+    "sampleLength": 0.30,
+    "fadeLength": 0.12,
+    "extraInferenceTime": 2.92
+  }
+}
+```
+
+读取时兼容示例中的历史字段别名；应用保存和导出时会规范化为完整九项参数。模型文件内的 RVC 版本、实际采样率和是否带音高会由引擎直接识别。旧版 `%LOCALAPPDATA%\RvcStudio\model-profiles.json` 会在升级后一次性迁移到模型旁配置，不再作为运行时参数来源。
 
 ## 使用额度与本地数据
 

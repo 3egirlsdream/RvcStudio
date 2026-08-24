@@ -105,6 +105,16 @@ public sealed class EngineClient : IAsyncDisposable
             payload["cuda_graph_enabled"]?.GetValue<bool>() ?? false);
     }
 
+    public async Task<ModelInspection> InspectModelAsync(string modelPath, CancellationToken cancellationToken = default)
+    {
+        var payload = await CallAsync("inspect_model", new { pth_path = modelPath }, cancellationToken);
+        return new ModelInspection(
+            payload["version"]?.GetValue<string>() ?? string.Empty,
+            payload["sample_rate"]?.GetValue<int>() ?? 0,
+            payload["supports_pitch"]?.GetValue<bool>() ?? false,
+            payload["info"]?.GetValue<string>() ?? string.Empty);
+    }
+
     public async Task<(IReadOnlyList<AudioDevice> Inputs, IReadOnlyList<AudioDevice> Outputs)> GetDevicesAsync(bool refresh = false, CancellationToken cancellationToken = default)
     {
         var payload = await CallAsync(refresh ? "refresh_devices" : "get_devices", null, cancellationToken);
