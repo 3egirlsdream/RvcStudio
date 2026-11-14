@@ -1,7 +1,7 @@
 RVC Studio 模型商城：部署与验收
 
 默认状态：关闭。RVC_STORE_ENABLED 未设置、不是 true 或安全配置缺失时，登录/会员支付继续使用现有流程。
-本次仅实现并验证本地代码；尚未执行生产迁移、生产上传、生产账号切换或上线。
+生产部署使用已验证的 SHA 镜像并保留旧容器回滚；当前内容状态以目录和上传任务接口为准。
 
 1. 数据库
    备份现有 MySQL 数据库，再执行 Database/Migrations/20261114_rvc_store.sql。
@@ -70,14 +70,23 @@ RVC Studio 模型商城：部署与验收
 会员语义：最近一次成功联网快照为准，离线不按本地日期降级，运行会话保留开始资格。
 后台网络下载/新授权仍检查服务器实际到期日。加密防止直接找到并导出，不承诺防管理员或逆向。
 
-2026-11-14 核对补充：
-- 首批试听改用用户授权的实际录音经 RVC 实时流程生成的七个 2.9013 秒小样。
-  对应文件和 SHA-256 记录在客户端 Assets/Store/previews.json，未复制原始录音或原始处理流。
-- 客户端一级商品卡片直接提供试听/使用、下载进度及取消。服务不可用时标明本地试听，
-  不把占位商品误标为真实“准备中”；上架状态以联网目录接口结果为准。
-- 当前 https://thankful.top/api/RvcStore/Catalog 返回 HTTP 404，本地商城改动尚未提交推送。
-- 远端 master 的 .github/workflows/dotnet.yml 是 netcore-ci：push/PR 执行验证与容器构建；
-  workflow_dispatch 的 publish_image 才发布 SHA 标签镜像。production.yml 的
-  production-operations 使用 image_sha 手动选择已验证版本部署，并支持回滚。
-- 本地后台 checkout 的基线落后于远端。正式提交前需先合并远端 master，再整合商城改动；
-  保留上述生产工作流，不能以本地旧自动部署脚本覆盖远端现行流程。
+生产发布通道（2026-11-14）
+- 服务器无法直连 huggingface.co 时，使用 RVC_STORE_PUBLISHER_MODE=github。
+- 签名私钥由服务器生成，持久保存在私有卷，配置 RVC_STORE_SIGNING_PRIVATE_KEY_FILE。
+  原来的 RVC_STORE_SIGNING_PRIVATE_KEY_PEM 仍受支持。客户端只包含导出的公钥。
+- RVC_STORE_PUBLISHER_KEY 是独立随机发布凭证，至少 40 字符，仅配置在服务器与受信 Actions Secret。
+  不复用账号 JWT、管理员登录令牌、内容密钥或部署 SSH 凭证。
+- PublisherNext / PublisherFile / PublisherComplete / PublisherRelease 仅接受此凭证。
+  文件接口白名单只允许密文、封面、试听、签名清单和商品元数据，不提供模型原件或解密密钥。
+- RvcStudio 公共仓库的 store-publisher.yml 通过定时或手动任务领取草稿，上传至固定
+  xulezuo/RvcStudio/store/models/<商品>/<不可变版本>/，验证远端哈希后回执。
+  后台验证回执文件清单、字节数和哈希后才将任务设为 Ready；管理员随后发布商品。
+- 公共工作流使用标准托管 Runner；定时任务通常每 5 分钟领取，繁忙时可能延迟。
+  管理员可手动触发工作流。需保持该定时工作流处于 active 状态。
+- 下载和试听由后台私有持久卷中的已验证缓存提供，用户无需直连 HF。
+- 原 direct 发布模式和服务器 huggingface_hub 工具保留，网络可达时可选用。
+- 首批七个试听使用用户授权的实际录音经 RVC 生成的 2.9013 秒小样；
+  Assets/Store/previews.json 记录对应文件和哈希，不包含原始录音或原始处理流。
+- 客户端卡片直接试听和使用；选用成功后关闭商城、返回主页。重新下载和移除在卡片管理下载中。
+- 远端 netcore-ci 的 push/PR 执行验证，显式 publish_image 发布 SHA 镜像；
+  production-operations 指定 image_sha 部署，首次商城配置同时传 enable_store=true。
