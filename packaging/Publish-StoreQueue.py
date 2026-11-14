@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import re
 import tempfile
+import time
 
 import requests
 from huggingface_hub import HfApi
@@ -25,9 +26,14 @@ def main():
         response.raise_for_status();data=response.json()
         if data.get('success') is not True: raise RuntimeError('Store publication service rejected request')
         return data.get('data')
-    for _ in range(20):
+    processed=0;idle=0
+    for _ in range(100):
         job=call('PublisherNext')
-        if not job: print('No pending encrypted store drafts.');return
+        if not job:
+            if processed and idle<6:
+                idle+=1;time.sleep(5);continue
+            print('No pending encrypted store drafts.');return
+        idle=0
         for name in ('jobId','modelId','revision','lease'):
             if not re.fullmatch(r'[A-Za-z0-9-]{1,64}',job[name]): raise ValueError('Invalid publication identifier')
         print('Publishing encrypted draft '+job['jobId'],flush=True)
@@ -52,6 +58,7 @@ def main():
                 upload(hub,'xulezuo/RvcStudio',folder,'store/models/'+job['modelId']+'/'+job['revision'])
                 call('PublisherComplete',{'jobId':job['jobId'],'lease':job['lease'],'files':report})
             print('Verified and completed encrypted draft '+job['jobId'],flush=True)
+            processed+=1
         except Exception as error:
             try:call('PublisherRelease',params={'id':job['jobId'],'lease':job['lease']})
             except Exception:pass
