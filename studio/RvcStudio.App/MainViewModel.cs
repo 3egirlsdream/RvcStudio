@@ -22,6 +22,14 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
     private readonly DailyUsageQuotaService _usageQuota = new();
     private readonly SemaphoreSlim _quotaUpdateGate = new(1, 1);
     public AccountService Account { get; } = new();
+    public StoreService Store { get; }
+    private StoreItem? _currentStoreItem;
+    private string _storeAccountId = "";
+    private bool? _sessionIsMember;
+    private string _rememberedStoreUri = "";
+    public string ActiveStoreId => _currentStoreItem?.Id ?? "";
+    internal string EngineRoot => _engine.RvcRoot;
+    internal Task<ModelInspection> InspectUploadAsync(string model,string index,CancellationToken token) => _engine.InspectModelPairAsync(model,index,token);
     private readonly DispatcherTimer _statusTimer;
     private CancellationTokenSource? _deviceSelectionCts;
     private CancellationTokenSource? _configApplyCts;
@@ -86,6 +94,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
 
     public MainViewModel()
     {
+        Store = new StoreService(Account);
         _statusTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
         _statusTimer.Tick += async (_, _) => await PollStatusAsync();
         Account.Changed += Account_Changed;
@@ -125,7 +134,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
         set
         {
             if (!Set(ref _selectedModelChoice, value) || _suppressModelChoiceSync || value is null) return;
-            SelectModelChoice(value);
+            _ = SelectModelChoiceAsync(value);
         }
     }
     public AudioDevice? SelectedInput { get => _selectedInput; set => Set(ref _selectedInput, value); }
@@ -228,6 +237,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
         try
         {
             await accountInitialization;
+            if(!string.IsNullOrEmpty(_rememberedStoreUri))
+            {
+                var remembered=Store.Downloaded().FirstOrDefault(i=>StoreUri(i)==_rememberedStoreUri);
+                if(remembered is not null && Store.CanUse(remembered.Access)) await UseStoreItemAsync(remembered);
+            }
         }
         catch (Exception exception)
         {
@@ -249,6 +263,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
         Dispatcher.UIThread.Post(() =>
         {
             if (_isDisposing) return;
+            if (_storeAccountId != (Account.Account?.Id ?? ""))
+            {
+                _storeAccountId=Account.Account?.Id ?? "";
+                _sessionIsMember=null;
+                _ = ClearStoreAfterAccountChangeAsync();
+            }
             OnPropertyChanged(nameof(IsAuthenticated));
             OnPropertyChanged(nameof(AccountButtonTitle));
             OnPropertyChanged(nameof(AccountButtonSubtitle));
@@ -291,6 +311,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
             if (IsRunning)
             {
                 ApplyStatus(await _engine.StopConversionAsync());
+                _sessionIsMember=null;
                 await UpdateUsageQuotaAsync(engineRunning: false, allowAutomaticStop: false);
                 SetReady("已停止", "实时音频流已安全关闭。");
                 AppendLog("实时变声已停止。");
@@ -316,6 +337,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
             }
             StatusText = "正在加载模型和启动音频流…";
             StatusBrush = new SolidColorBrush(Color.Parse("#E7C66A"));
+            if (_currentStoreItem is not null) await _engine.LoadStoreModelAsync(await Store.LoadPayloadAsync(_currentStoreItem));
+            _sessionIsMember=StoreEntitlementPolicy.IsMember(Account.Account,Store.Trust.PublicKeyPem);
             await _engine.UpdateConfigAsync(BuildConfig());
             ApplyStatus(await _engine.StartConversionAsync());
             await UpdateUsageQuotaAsync(IsRunning);
@@ -326,6 +349,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
         catch (Exception exception)
         {
             SetError("无法启动实时变声", exception);
+            if(!IsRunning) _sessionIsMember=null;
         }
     }
 
@@ -353,7 +377,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
 
     public void RestoreModelDefaults()
     {
-        if (string.IsNullOrWhiteSpace(_activeModelId) || !IsRestoreDefaultsVisible) return;
+        if ((string.IsNullOrWhiteSpace(_activeModelId) && _currentStoreItem is null) || !IsRestoreDefaultsVisible) return;
         _suppressConfigApply = true;
         _suppressProfileTracking = true;
         try
@@ -385,6 +409,15 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
     private void TrackCurrentModelSettings()
     {
         var current = CaptureModelTuning();
+        if(_currentStoreItem is not null)
+        {
+            try {Store.SaveSettings(_currentStoreItem,current);}
+            catch(Exception ex) when(ex is IOException or UnauthorizedAccessException)
+            {AppendLog($"商城音色 {_currentStoreItem.Id} 的个人参数保存失败，请检查磁盘空间和写入权限。");}
+            IsRestoreDefaultsVisible=!current.IsAppDefault;
+            UpdateModelSettingsSummary(current);
+            return;
+        }
         if (!string.IsNullOrWhiteSpace(_activeModelId))
         {
             _modelProfiles.UpdateCurrent(_activeModelId, current);
@@ -431,6 +464,15 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
 
     private async Task LoadSelectedModelProfileAsync(CancellationToken cancellationToken = default)
     {
+        if(ModelPath.StartsWith("store://",StringComparison.Ordinal))
+        {
+            _currentStoreItem=Store.Downloaded().FirstOrDefault(i=>StoreUri(i)==ModelPath) ?? throw new InvalidDataException("该账号尚未下载此商城模型。");
+            _activeModelId=""; _suppressConfigApply=_suppressProfileTracking=true;
+            try { ApplyModelTuning(Store.Settings(_currentStoreItem)); ModelDetailsText=$"商城 · {_currentStoreItem.Name} · {_currentStoreItem.Details}"; }
+            finally { _suppressConfigApply=_suppressProfileTracking=false; }
+            TrackCurrentModelSettings(); return;
+        }
+        _currentStoreItem=null;
         var resolvedModel = ResolveExistingFile(ModelPath, ".pth");
         if (resolvedModel is null)
         {
@@ -641,6 +683,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
 
     private Dictionary<string, object?> BuildConfig() => new()
     {
+        ["model_source"] = _currentStoreItem is null ? "local" : "store",
+        ["store_model_id"] = _currentStoreItem?.Id ?? "",
+        ["store_revision"] = _currentStoreItem?.Revision ?? "",
         ["pth_path"] = ModelPath,
         ["index_path"] = IndexPath,
         ["pitch"] = (int)Math.Round(Pitch),
@@ -713,9 +758,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
     {
         get
         {
-            var account = Account.Account;
-            if (account?.IsMember != true) return true;
-            return account.MembershipExpireDate is not null && account.MembershipExpireDate.Value <= DateTime.Now;
+            return StoreEntitlementPolicy.IsFree(IsRunning,_sessionIsMember,Account.Account,Store.Trust.PublicKeyPem);
         }
     }
 
@@ -848,6 +891,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
         try
         {
             var rememberedModelPath = GetString(config, "pth_path", ModelPath);
+            if(rememberedModelPath.StartsWith("store://",StringComparison.Ordinal)) _rememberedStoreUri=rememberedModelPath;
             var rememberedModel = ResolveExistingFile(rememberedModelPath, ".pth");
             ModelPath = rememberedModel ?? SelectFallbackModel(rememberedModelPath);
 
@@ -1041,9 +1085,20 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
         AppContext.BaseDirectory,
     }.Where(path => !string.IsNullOrWhiteSpace(path)).Distinct(StringComparer.OrdinalIgnoreCase);
 
-    private void SelectModelChoice(ModelChoice choice)
+    private async Task SelectModelChoiceAsync(ModelChoice choice,bool reportFailure=false)
     {
+        try
+        {
+            if(_currentStoreItem is not null || choice.IsStore)
+            {
+                if(IsRunning) ApplyStatus(await _engine.StopConversionAsync());
+                await _engine.UnloadStoreModelAsync(); _sessionIsMember=null;
+            }
         _suppressModelChoiceSync = true;
+        var priorSuppression=_suppressConfigApply;
+        _suppressConfigApply=true;
+        _modelSelectionCts?.Cancel();
+        _configApplyCts?.Cancel();
         try
         {
             IndexPath = choice.IndexPath;
@@ -1052,7 +1107,49 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
         finally
         {
             _suppressModelChoiceSync = false;
+            _suppressConfigApply=priorSuppression;
         }
+            await LoadSelectedModelProfileAsync();
+            await _engine.UpdateConfigAsync(BuildConfig());
+            _suppressModelChoiceSync=true;
+            try { SelectedModelChoice=ModelChoices.FirstOrDefault(c=>c.ModelPath==choice.ModelPath)??choice; }
+            finally { _suppressModelChoiceSync=false; }
+        }
+        catch(Exception ex) { SetError("切换音色失败",ex); if(reportFailure)throw; }
+    }
+
+    private static string StoreUri(StoreItem item)=>$"store://{item.Id}/{item.Revision}";
+    public async Task UseStoreItemAsync(StoreItem item)
+    {
+        if(item.IsBuiltin)
+        {
+            var known=BuiltinVoices.Find(item.BuiltinFile)??throw new InvalidDataException("未知的内置音色。");
+            var path=Path.Combine(_engine.RvcRoot,"assets","weights",known.BuiltinFile);
+            if(!File.Exists(path)) throw new FileNotFoundException("当前安装缺少该免费音色，请安装完整版本。");
+            var choice=new ModelChoice(item.Name,path,FindMatchingIndexPath(path)??"",false);
+            await SelectModelChoiceAsync(choice,true); return;
+        }
+        if(!Store.IsDownloaded(item) || !Store.CanUse(item.Access)) throw new RvcStudioApiException("请先登录会员账号并下载该音色。");
+        RefreshModelChoices();
+        await SelectModelChoiceAsync(new ModelChoice(item.Name,StoreUri(item),"",false),true);
+        _suppressModelChoiceSync=true;
+        try{SelectedModelChoice=ModelChoices.FirstOrDefault(c=>c.ModelPath==StoreUri(item));}
+        finally{_suppressModelChoiceSync=false;}
+    }
+    private async Task ClearStoreAfterAccountChangeAsync()
+    {
+        try
+        {
+            if(_currentStoreItem is not null)
+            {
+                _modelSelectionCts?.Cancel();
+                ApplyStatus(await _engine.StopConversionAsync());
+                await _engine.UnloadStoreModelAsync(); _currentStoreItem=null; _activeModelId="";
+                ModelPath=""; IndexPath="";
+            }
+            RefreshModelChoices();
+        }
+        catch(Exception ex) { SetError("账号音色切换失败",ex); }
     }
 
     internal void RefreshModelChoices()
@@ -1071,14 +1168,16 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
             foreach (var model in managedModels)
             {
                 ModelChoices.Add(new ModelChoice(
-                    model.Name,
+                    BuiltinVoices.Find(Path.GetFileName(model.ModelPath))?.Name ?? model.Name,
                     model.ModelPath,
                     model.IndexPath ?? string.Empty,
                     IsExternal: false));
             }
 
+            foreach(var item in Store.Downloaded()) ModelChoices.Add(new(item.Name,StoreUri(item),"",false));
+
             var selected = currentModelPath is null
-                ? null
+                ? ModelChoices.FirstOrDefault(c=>c.ModelPath==ModelPath && c.IsStore)
                 : ModelChoices.FirstOrDefault(choice => PathsEqual(choice.ModelPath, currentModelPath));
             if (selected is null && currentModelPath is not null)
             {
@@ -1104,6 +1203,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
 
     private void SyncSelectedModelChoice()
     {
+        if(ModelPath.StartsWith("store://",StringComparison.Ordinal)) return;
         var currentModelPath = ResolveExistingFile(ModelPath, ".pth");
         _suppressModelChoiceSync = true;
         try
@@ -1272,6 +1372,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
         AppendLog($"{title}：{exception.Message}");
     }
 
+    public void ReportUpdateResult(string message) => ShowToast(message, message.Contains("未成功") ? "#4A241D" : "#253A20");
+
     private void ShowToast(string message, string color)
     {
         ToastMessage = message;
@@ -1411,6 +1513,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
         try
         {
             Account.Dispose();
+            Store.Dispose();
         }
         catch (Exception exception)
         {

@@ -4,7 +4,9 @@
 #endif
 #define AppVersion MyAppVersion
 #define AppPublisher "RVC Studio"
-#define StageDir "output\stage"
+#ifndef StageDir
+  #define StageDir "output\stage"
+#endif
 
 [Setup]
 AppId={{C1DE5C7B-2109-4A5D-971B-B34A71112914}
@@ -47,7 +49,17 @@ Name: "{app}\assets\weights"; Permissions: users-modify
 Name: "{app}\assets\indices"; Permissions: users-modify
 
 [Files]
-Source: "{#StageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Keep maintenance inputs first: PrepareToInstall extracts these from the solid archive.
+Source: "{#StageDir}\RVC Studio.exe"; DestName: "rvc-installer-maintenance.exe"; Flags: dontcopy
+Source: "{#StageDir}\release-manifest.json"; DestName: "rvc-new-release-manifest.json"; Flags: dontcopy
+; The old inventory stays authoritative until stale-file cleanup has succeeded.
+Source: "{#StageDir}\*"; DestDir: "{app}"; Excludes: "assets\weights\*,assets\indices\*,configs\*,release-manifest.json"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#StageDir}\assets\weights\*"; DestDir: "{app}\assets\weights"; Flags: onlyifdoesntexist recursesubdirs createallsubdirs
+Source: "{#StageDir}\assets\indices\*"; DestDir: "{app}\assets\indices"; Flags: onlyifdoesntexist recursesubdirs createallsubdirs
+Source: "{#StageDir}\configs\*.py"; DestDir: "{app}\configs"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#StageDir}\configs\*.json"; DestDir: "{app}\configs"; Flags: onlyifdoesntexist
+Source: "{#StageDir}\configs\v1\*.json"; DestDir: "{app}\configs\v1"; Flags: ignoreversion
+Source: "{#StageDir}\configs\v2\*.json"; DestDir: "{app}\configs\v2"; Flags: ignoreversion
 Source: "vendor\vb-cable\official-package\*"; DestDir: "{tmp}\rvcstudio-vbcable"; Flags: ignoreversion recursesubdirs createallsubdirs deleteafterinstall; Tasks: vbcable; Check: ShouldInstallVBCable
 
 [Icons]
@@ -56,16 +68,21 @@ Name: "{autodesktop}\RVC Studio"; Filename: "{app}\RVC Studio.exe"; WorkingDir: 
 Name: "{group}\VB-CABLE 官网与捐赠"; Filename: "https://vb-audio.com/Cable/"
 
 [Run]
-Filename: "{app}\runtime\python.exe"; Parameters: "-I ""{app}\tools\package_healthcheck.py"" --root ""{app}"" --require-cuda"; WorkingDir: "{app}"; Flags: runhidden waituntilterminated; StatusMsg: "正在验证 CUDA、RVC 引擎和默认模型…"
+Filename: "{app}\runtime\python.exe"; Parameters: "-I ""{app}\tools\package_healthcheck.py"" --root ""{app}"" --require-cuda"; WorkingDir: "{app}"; Flags: runhidden waituntilterminated; StatusMsg: "正在清理旧文件并验证 CUDA、RVC 引擎和默认模型…"; BeforeInstall: ReconcileInstalledFiles
 Filename: "{tmp}\rvcstudio-vbcable\VBCABLE_Setup_x64.exe"; Parameters: "-i -h"; WorkingDir: "{tmp}\rvcstudio-vbcable"; Flags: waituntilterminated; StatusMsg: "正在安装标准 VB-CABLE 虚拟声卡…"; Tasks: vbcable; Check: ShouldInstallVBCable
 Filename: "{app}\RVC Studio.exe"; Description: "启动 RVC Studio"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent; Check: CanLaunchImmediately
 
 [Registry]
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\RunOnce"; ValueType: string; ValueName: "RVC Studio"; ValueData: """{app}\RVC Studio.exe"""; Flags: uninsdeletevalue; Tasks: vbcable; Check: ShouldInstallVBCable
 
+[UninstallDelete]
+Type: files; Name: "{app}\release-manifest.json"
+Type: files; Name: "{app}\installer-cleanup.log"
+
 [Code]
 var
   VBCablePresentAtStart: Boolean;
+  CleanupApplied: Boolean;
 
 function IsVBCableInstalled: Boolean;
 begin
@@ -79,7 +96,25 @@ end;
 
 function CanLaunchImmediately: Boolean;
 begin
-  Result := not ShouldInstallVBCable;
+  Result := CleanupApplied and (not ShouldInstallVBCable);
+end;
+
+procedure ReconcileInstalledFiles;
+var
+  ResultCode: Integer;
+begin
+  if CleanupApplied then
+    Exit;
+  if not Exec(ExpandConstant('{tmp}\rvc-installer-maintenance.exe'),
+    ExpandConstant('--installer-cleanup apply "{tmp}\rvc-cleanup-plan.json"'),
+    ExpandConstant('{tmp}'), SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    RaiseException('无法启动旧文件清理。请关闭软件后重新运行完整安装包。');
+  if ResultCode <> 0 then
+  begin
+    Log('Old-file cleanup failed: ' + IntToStr(ResultCode));
+    RaiseException('旧文件清理未完成。请查看安装目录中的 installer-cleanup.log，关闭其他实例后重新运行完整安装包。');
+  end;
+  CleanupApplied := True;
 end;
 
 function NeedRestart: Boolean;
@@ -107,4 +142,28 @@ end;
 procedure InitializeWizard;
 begin
   VBCablePresentAtStart := IsVBCableInstalled;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
+begin
+  Result := '';
+  if FileExists(ExpandConstant('{app}\.rvc-update\journal.json')) then
+  begin
+    Result := '检测到未完成的软件更新。请先启动 RVC Studio 完成更新恢复，再运行完整安装包。';
+    Exit;
+  end;
+  try
+    ExtractTemporaryFile('rvc-installer-maintenance.exe');
+    ExtractTemporaryFile('rvc-new-release-manifest.json');
+    if not Exec(ExpandConstant('{tmp}\rvc-installer-maintenance.exe'),
+      ExpandConstant('--installer-cleanup prepare "{app}" "{tmp}\rvc-new-release-manifest.json" "{tmp}\rvc-cleanup-plan.json"'),
+      ExpandConstant('{tmp}'), SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+      Result := '无法准备旧文件清理。尚未改动已安装文件。'
+    else if ResultCode <> 0 then
+      Result := '安装文件清单验证失败，已停止覆盖安装以保护现有文件。详情见本地 Updates\update.log。';
+  except
+    Result := '无法提取或验证安装清理工具。尚未改动已安装文件。';
+  end;
 end;

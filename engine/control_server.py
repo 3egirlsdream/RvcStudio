@@ -57,6 +57,15 @@ class ControlServer:
             result = self.engine.refresh_devices()
         elif command == "inspect_model":
             result = self.engine.inspect_model(payload.get("pth_path", ""))
+        elif command == "inspect_model_pair":
+            result = self.engine.inspect_model_pair(payload.get("pth_path", ""),payload.get("index_path", ""))
+        elif command == "load_store_model":
+            try:
+                result = self.engine.load_store_model(payload)
+            except Exception:
+                raise ValueError("商城模型验证或加载失败，请重新下载并确认账号权限。") from None
+        elif command == "unload_store_model":
+            result = self.engine.unload_store_model()
         elif command == "get_status":
             result = self.engine.status()
         elif command == "update_config":

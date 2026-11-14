@@ -6,7 +6,7 @@ namespace RvcStudio.App;
 public sealed class AccountService : IDisposable
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
-    private readonly RvcStudioApiClient _api = new();
+    private readonly RvcStudioApiClient _api;
     private readonly string _sessionPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "RvcStudio",
@@ -17,6 +17,11 @@ public sealed class AccountService : IDisposable
         "account.json");
 
     public event Action? Changed;
+    public AccountService(RvcStudioApiClient? api=null,string? sessionRoot=null)
+    {
+        _api=api??new RvcStudioApiClient();
+        if(sessionRoot is not null){_sessionPath=Path.Combine(sessionRoot,"account.dat");_legacySessionPath=Path.Combine(sessionRoot,"account.json");}
+    }
     public AccountProfile? Account { get; private set; }
     public string Token { get; private set; } = string.Empty;
     public bool IsAuthenticated => Account is not null && !string.IsNullOrWhiteSpace(Token);
@@ -63,6 +68,10 @@ public sealed class AccountService : IDisposable
         catch (HttpRequestException)
         {
             // Preserve the cached session while the service is temporarily offline.
+        }
+        catch (TaskCanceledException) when (!token.IsCancellationRequested)
+        {
+            // An offline startup preserves the last successful membership snapshot.
         }
     }
 

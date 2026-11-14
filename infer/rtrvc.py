@@ -23,7 +23,7 @@ def printt(strr, *args):
         print(strr % args)
 
 
-def get_synthesizer(pth_path, device=torch.device("cpu")):
+def get_synthesizer(pth_path, device=torch.device("cpu"), checkpoint=None):
     from infer.module.models import (
         SynthesizerTrnMs256NSFsid,
         SynthesizerTrnMs256NSFsid_nono,
@@ -31,7 +31,7 @@ def get_synthesizer(pth_path, device=torch.device("cpu")):
         SynthesizerTrnMs768NSFsid_nono,
     )
 
-    cpt = torch.load(pth_path, map_location=torch.device("cpu"))
+    cpt = checkpoint if checkpoint is not None else torch.load(pth_path, map_location=torch.device("cpu"), weights_only=True)
     cpt["config"][-3] = cpt["weight"]["emb_g.weight"].shape[0]
     if_f0 = cpt.get("f0", 1)
     version = cpt.get("version", "v1")
@@ -65,6 +65,7 @@ class RVC:
         index_rate,
         config,
         last_rvc=None,
+        store_data=None,
     ) :
         """
         初始化
@@ -81,7 +82,12 @@ class RVC:
             self.f0_mel_min = 1127 * np.log(1 + self.f0_min / 700)
             self.f0_mel_max = 1127 * np.log(1 + self.f0_max / 700)
             self.is_half = config.is_half
-            if index_rate != 0:
+            self.store_managed = store_data is not None
+            if store_data is not None:
+                self.index = store_data['index']
+                if index_rate != 0:
+                    self.big_npy = self.index.reconstruct_n(0,self.index.ntotal)
+            elif index_rate != 0:
                 self.index = faiss.read_index(index_path)
                 self.big_npy = self.index.reconstruct_n(0, self.index.ntotal)
                 printt(i18n("已启用索引检索"))
@@ -106,7 +112,7 @@ class RVC:
             self.net_g = None
 
             def set_synthesizer():
-                self.net_g, cpt = get_synthesizer(self.pth_path, self.device)
+                self.net_g, cpt = get_synthesizer(self.pth_path, self.device, store_data['checkpoint'] if store_data else None)
                 self.tgt_sr = cpt["config"][-1]
                 cpt["config"][-3] = cpt["weight"]["emb_g.weight"].shape[0]
                 self.if_f0 = cpt.get("f0", 1)
@@ -140,7 +146,8 @@ class RVC:
 
     def change_index_rate(self, new_index_rate):
         if new_index_rate != 0 and self.index_rate == 0:
-            self.index = faiss.read_index(self.index_path)
+            if not self.store_managed:
+                self.index = faiss.read_index(self.index_path)
             self.big_npy = self.index.reconstruct_n(0, self.index.ntotal)
             printt(i18n("已启用索引检索"))
         self.index_rate = new_index_rate

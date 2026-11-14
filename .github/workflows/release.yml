@@ -20,6 +20,8 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       UPDATE_SERVICE_URL: ${{ vars.RVC_UPDATE_SERVICE_URL }}
       HF_RELEASE_REPOSITORY: ${{ vars.HF_RELEASE_REPOSITORY }}
+      RVC_UPDATE_PUBLIC_KEY_PEM: ${{ vars.RVC_UPDATE_PUBLIC_KEY_PEM }}
+      RVC_STORE_PUBLIC_KEY_PEM: ${{ vars.RVC_STORE_PUBLIC_KEY_PEM }}
 
     steps:
       - name: Check out source
@@ -72,6 +74,19 @@ jobs:
         shell: pwsh
         run: choco install innosetup 7zip --no-progress -y
 
+      - name: Verify update and recovery behavior
+        if: steps.version.outputs.should_release == 'true'
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check huggingface_hub cryptography
+          if ($LASTEXITCODE -ne 0) { throw 'Publishing dependency installation failed.' }
+          dotnet test studio/RvcStudio.App.Tests/RvcStudio.App.Tests.csproj --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'Client tests failed.' }
+          ./packaging/Test-UpdatePackaging.ps1
+          ./packaging/Test-StorePackaging.ps1
+          python -m unittest discover -s packaging -p test_update_publishing.py -v
+          if ($LASTEXITCODE -ne 0) { throw 'Publishing tests failed.' }
+
       - name: Restore exact CUDA runtime and models
         if: steps.version.outputs.should_release == 'true'
         shell: pwsh
@@ -80,14 +95,19 @@ jobs:
       - name: Build and verify installer
         if: steps.version.outputs.should_release == 'true'
         shell: pwsh
+        env:
+          RVC_UPDATE_PRIVATE_KEY_PEM: ${{ secrets.RVC_UPDATE_PRIVATE_KEY_PEM }}
         run: |
+          if ([string]::IsNullOrWhiteSpace($env:RVC_UPDATE_PRIVATE_KEY_PEM) -or [string]::IsNullOrWhiteSpace($env:RVC_UPDATE_PUBLIC_KEY_PEM)) {
+            throw 'Configure RVC_UPDATE_PRIVATE_KEY_PEM secret and RVC_UPDATE_PUBLIC_KEY_PEM variable before publishing.'
+          }
           ./packaging/Build-Release.ps1 `
             -Version '${{ steps.version.outputs.client }}' `
             -ReleaseNotes 'Automated build from commit ${{ github.sha }}' `
             -SkipVersionPublish `
             -AllowNoCudaDevice
 
-      - name: Publish single offline EXE to Hugging Face
+      - name: Publish immutable full and small packages to Hugging Face
         if: steps.version.outputs.should_release == 'true'
         id: huggingface
         shell: pwsh
@@ -101,12 +121,12 @@ jobs:
           if ([string]::IsNullOrWhiteSpace($env:HF_TOKEN)) {
             throw 'Repository secret HF_TOKEN is required and must have Hugging Face write permission.'
           }
-          python -m pip install --disable-pip-version-check --upgrade huggingface_hub
           python packaging/Publish-HuggingFaceRelease.py `
             --repository $env:HF_RELEASE_REPOSITORY `
             --version '${{ steps.version.outputs.client }}' `
             --installer 'packaging/output/installer/RVC-Studio-NVIDIA-Setup.exe' `
             --github-output $env:GITHUB_OUTPUT
+          if ($LASTEXITCODE -ne 0) { throw 'Immutable release upload failed.' }
 
       - name: Publish GitHub Release metadata
         if: steps.version.outputs.should_release == 'true'
@@ -131,17 +151,36 @@ jobs:
           SHA-256: ``$checksum``
 
           安装包包含程序、Python、PyTorch CUDA 运行环境和默认模型，不需要额外 BIN 分卷。
+          已安装 1.1.0 或更新版本且运行环境兼容的用户，可直接在软件内下载小包更新。
           "@
+          $notesPath = Join-Path $env:RUNNER_TEMP 'rvc-release-notes.txt'
+          [IO.File]::WriteAllText($notesPath, $notes, [Text.UTF8Encoding]::new($false))
           gh release view $tag --repo '${{ github.repository }}' *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --repo '${{ github.repository }}' --target '${{ github.sha }}' --title "RVC Studio ${{ steps.version.outputs.client }}" --notes $notes --draft
+            gh release create $tag --repo '${{ github.repository }}' --target '${{ github.sha }}' --title "RVC Studio ${{ steps.version.outputs.client }}" --notes-file $notesPath --draft
+            if ($LASTEXITCODE -ne 0) { throw 'GitHub Release creation failed.' }
           }
           $assets = @(
             (Resolve-Path 'packaging/output/installer/README.txt').Path,
             (Resolve-Path 'packaging/output/installer/SHA256SUMS.txt').Path
           )
           gh release upload $tag @assets --repo '${{ github.repository }}' --clobber
-          gh release edit $tag --repo '${{ github.repository }}' --title "RVC Studio ${{ steps.version.outputs.client }}" --notes $notes --draft=false --latest
+          if ($LASTEXITCODE -ne 0) { throw 'GitHub Release asset upload failed.' }
+          gh release edit $tag --repo '${{ github.repository }}' --title "RVC Studio ${{ steps.version.outputs.client }}" --notes-file $notesPath --draft=false --latest
+          if ($LASTEXITCODE -ne 0) { throw 'GitHub Release publication failed.' }
+
+      - name: Activate signed update pointer after GitHub succeeds
+        if: steps.version.outputs.should_release == 'true'
+        shell: pwsh
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python packaging/Publish-HuggingFaceRelease.py `
+            --repository $env:HF_RELEASE_REPOSITORY `
+            --version '${{ steps.version.outputs.client }}' `
+            --installer 'packaging/output/installer/RVC-Studio-NVIDIA-Setup.exe' `
+            --activate
+          if ($LASTEXITCODE -ne 0) { throw 'Update pointer activation failed; legacy server version was not changed.' }
 
       - name: Update server version after Release succeeds
         if: steps.version.outputs.should_release == 'true'

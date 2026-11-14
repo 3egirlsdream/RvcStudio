@@ -18,6 +18,15 @@ public partial class MainWindow : Window
     private async void Window_Opened(object? sender, EventArgs e)
     {
         await _viewModel.InitializeAsync();
+        UpdateRunner.CleanupRunners();
+        if (UpdateRunner.ConsumeResult(AppContext.BaseDirectory) is { } result) _viewModel.ReportUpdateResult(result);
+        try
+        {
+            using var updates = new AppUpdateService();
+            var update = await updates.CheckAsync();
+            if (update.IsAvailable && !_closing) UpdateNoticeWindow.ShowFor(update, this);
+        }
+        catch (Exception ex) { UpdateRunner.Log("启动检查更新：" + ex.Message); }
     }
 
     private async void RefreshDevices_Click(object? sender, RoutedEventArgs e) => await _viewModel.ReloadDevicesAsync();
@@ -30,6 +39,8 @@ public partial class MainWindow : Window
 
     private async void Settings_Click(object? sender, RoutedEventArgs e) =>
         await new SettingsWindow(_viewModel).ShowDialog(this);
+
+    private void Store_Click(object? sender,RoutedEventArgs e) => new StoreWindow(_viewModel).Show(this);
 
     private async void Account_Click(object? sender, RoutedEventArgs e)
     {

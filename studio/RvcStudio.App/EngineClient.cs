@@ -11,7 +11,7 @@ namespace RvcStudio.App;
 public sealed class EngineClient : IAsyncDisposable
 {
     private static readonly TimeSpan StartupTimeout = TimeSpan.FromSeconds(90);
-    private readonly JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true };
+    private readonly JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
     private Process? _process;
     private int _port;
     private string _token = string.Empty;
@@ -49,6 +49,7 @@ public sealed class EngineClient : IAsyncDisposable
             token = _token,
             log_dir = logDirectory,
             app_config = Path.Combine(appData, "config.json"),
+            store_public_key_pem = StoreTrust.Load().PublicKeyPem,
         };
         try
         {
@@ -115,6 +116,14 @@ public sealed class EngineClient : IAsyncDisposable
             payload["info"]?.GetValue<string>() ?? string.Empty);
     }
 
+    public async Task<ModelInspection> InspectModelPairAsync(string model,string index,CancellationToken token=default)
+    {
+        var r=await CallAsync("inspect_model_pair",new {pth_path=model,index_path=index},token);
+        return new(r["version"]!.GetValue<string>(),r["sample_rate"]!.GetValue<int>(),r["supports_pitch"]!.GetValue<bool>(),"");
+    }
+    public async Task LoadStoreModelAsync(object payload,CancellationToken token=default) => await CallAsync("load_store_model",payload,token);
+    public async Task UnloadStoreModelAsync(CancellationToken token=default) => await CallAsync("unload_store_model",null,token);
+
     public async Task<(IReadOnlyList<AudioDevice> Inputs, IReadOnlyList<AudioDevice> Outputs)> GetDevicesAsync(bool refresh = false, CancellationToken cancellationToken = default)
     {
         var payload = await CallAsync(refresh ? "refresh_devices" : "get_devices", null, cancellationToken);
@@ -148,7 +157,7 @@ public sealed class EngineClient : IAsyncDisposable
         {
             ["token"] = _token,
             ["command"] = command,
-            ["payload"] = payload is null ? new JsonObject() : JsonSerializer.SerializeToNode(payload, _jsonOptions),
+            ["payload"] = payload is null ? new JsonObject() : EncodePayload(payload),
         };
         await writer.WriteLineAsync(request.ToJsonString(_jsonOptions).AsMemory(), cancellationToken);
         var responseLine = await reader.ReadLineAsync(cancellationToken) ?? throw new IOException("RVC 引擎没有返回响应。");
@@ -159,6 +168,8 @@ public sealed class EngineClient : IAsyncDisposable
         }
         return response["result"]?.AsObject() ?? new JsonObject();
     }
+
+    internal static JsonNode? EncodePayload(object payload) => JsonSerializer.SerializeToNode(payload,StoreCrypto.Json);
 
     private static IReadOnlyList<AudioDevice> ReadDevices(JsonNode? node)
     {

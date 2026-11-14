@@ -8,7 +8,7 @@ echo RVC Studio NVIDIA - one-click release packaging
 echo ============================================================
 echo.
 
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0packaging\Build-Release.ps1" %*
+pwsh.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0packaging\Build-Release.ps1" %*
 set "RVC_BUILD_EXIT=%ERRORLEVEL%"
 
 echo.

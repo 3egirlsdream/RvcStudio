@@ -17,6 +17,8 @@ public sealed class ApiMessage
 
 public sealed class AccountProfile
 {
+    public StoreSignature? StoreSnapshot { get; set; }
+    public bool CanManageStore { get; set; }
     public string Id { get; set; } = string.Empty;
     public string Username { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;

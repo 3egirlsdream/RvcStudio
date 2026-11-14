@@ -9,7 +9,8 @@ internal sealed record ManagedModel(
     string ConfigPath,
     bool HasCustomSettings)
 {
-    public bool CanExport => IndexPath is not null;
+    public bool IsStore => ModelPath.StartsWith("store://",StringComparison.Ordinal);
+    public bool CanExport => !IsStore && IndexPath is not null;
 }
 
 internal sealed record ModelImportPreview(
@@ -213,6 +214,7 @@ internal sealed class ModelPackageService
         CancellationToken cancellationToken = default)
     {
         if (models.Count == 0) return [];
+        if(models.Any(m=>m.IsStore || m.ModelPath.EndsWith(".rvcm",StringComparison.OrdinalIgnoreCase))) throw new UnauthorizedAccessException("商城模型仅可在软件内使用，不能导出。");
         if (string.IsNullOrWhiteSpace(destinationDirectory))
         {
             throw new ArgumentException("请选择导出目录。", nameof(destinationDirectory));

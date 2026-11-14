@@ -32,6 +32,7 @@
         </StackPanel>
 
         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Button Click="Store_Click" Height="40" Padding="10,5">音色商城</Button>
           <Button Click="Settings_Click"
                   Background="#191E1B"
                   BorderBrush="#303833"

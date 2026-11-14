@@ -302,7 +302,11 @@ public partial class SettingsWindow : Window
             if (update.IsAvailable)
             {
                 SetUpdateStatus($"发现新版本 {update.AvailableVersionText}", "#B7F36B", "#415634");
-                await new UpdateNoticeWindow(update).ShowDialog(this);
+                if (Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow is { } main)
+                {
+                    UpdateNoticeWindow.ShowFor(update, main);
+                    Close();
+                }
             }
             else
             {

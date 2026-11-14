@@ -12,7 +12,8 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new MainWindow();
+            desktop.MainWindow = UpdateTransaction.NeedsRecovery(AppContext.BaseDirectory)
+                ? new UpdateRecoveryWindow() : new MainWindow();
         }
 
         base.OnFrameworkInitializationCompleted();

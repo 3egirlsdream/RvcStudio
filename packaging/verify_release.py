@@ -13,6 +13,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--require-cuda", action="store_true")
+    parser.add_argument("--update-only", action="store_true", help="Verify engine imports/capabilities without opening audio streams or loading a voice model")
     return parser.parse_args()
 
 
@@ -40,13 +41,14 @@ def main() -> int:
         root / "realtime_service.py",
         root / "assets" / "hubert_base" / "pytorch_model.bin",
         root / "assets" / "rmvpe" / "rmvpe.pt",
-        root / "assets" / "weights" / "kikiV1.pth",
-        root / "assets" / "indices" / "kikiV1.index",
     ]
+    if not args.update_only:
+        required.extend([root / "assets" / "weights" / "kikiV1.pth", root / "assets" / "indices" / "kikiV1.index"])
     for path in required:
         require_file(path)
 
     import torch
+    from Crypto.Cipher import AES  # Store models use the bundled AES-GCM implementation.
 
     architectures = compiled_cuda_architectures(torch)
     required_architectures = {"sm_75", "sm_86", "sm_120"}
@@ -64,9 +66,13 @@ def main() -> int:
     engine = RealtimeEngine()
     try:
         capabilities = engine.capabilities()
-        devices = engine.device_payload()
+        devices = engine.device_payload() if not args.update_only else {"inputs": [], "outputs": []}
     finally:
         engine.close()
+
+    if args.update_only:
+        print(json.dumps({"ok": True, "torch": torch.__version__, "engine": capabilities}, default=str))
+        return 0
 
     # Loading the checkpoint and FAISS index catches missing native DLLs and
     # damaged model files without opening a live microphone stream.

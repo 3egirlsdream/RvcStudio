@@ -35,6 +35,9 @@ from tools.torchgate import TorchGate
 
 @dataclass
 class RealtimeConfig:
+    model_source: str = "local"
+    store_model_id: str = ""
+    store_revision: str = ""
     pth_path: str = ""
     index_path: str = ""
     pitch: int = 12
@@ -105,6 +108,8 @@ class RealtimeEngine:
     }
 
     def __init__(self, logger: logging.Logger | None = None):
+        self._store_data = None
+        self.store_public_key = ""
         self.log = logger or logging.getLogger("rvcstudio.engine")
         # The upstream Config class parses process-wide argv.  RVC Studio uses
         # its own --bootstrap argument, which must not leak into that parser.
@@ -162,6 +167,34 @@ class RealtimeEngine:
             "supports_pitch": bool(checkpoint.get("f0", 1)),
             "info": str(checkpoint.get("info", "") or ""),
         }
+
+    def inspect_model_pair(self, model_path, index_path):
+        import faiss
+        metadata=self.inspect_model(model_path)
+        index=faiss.read_index(index_path)
+        if index.d != (256 if metadata['version']=='v1' else 768) or index.ntotal<=0:
+            raise ValueError('索引维度与模型类型不匹配，或索引为空。')
+        return metadata
+
+    def load_store_model(self, payload):
+        from engine.store_crypto import load
+        self.stop()
+        self._store_data=load(payload,self.store_public_key)
+        self.gui_config.model_source='store'
+        self.gui_config.store_model_id=payload['model_id']
+        self.gui_config.store_revision=payload['revision']
+        self.gui_config.pth_path=f"store://{payload['model_id']}/{payload['revision']}"
+        self.gui_config.index_path=''
+        m=self._store_data['manifest']
+        return {'version':m['version'],'sample_rate':m['sampleRate'],'supports_pitch':m['supportsPitch'],'info':''}
+
+    def unload_store_model(self):
+        self.stop()
+        self._store_data=None
+        if self.gui_config.model_source=='store':
+            self.gui_config.pth_path=''; self.gui_config.index_path=''
+            self.gui_config.store_model_id=''; self.gui_config.store_revision=''; self.gui_config.model_source='local'
+        return self.status()
 
     def refresh_devices(self) -> dict[str, Any]:
         with self._lock:
@@ -275,6 +308,8 @@ class RealtimeEngine:
             merged = self.gui_config.to_dict()
             merged.update(update or {})
             next_config = RealtimeConfig.from_mapping(merged)
+            if self._store_data is not None and next_config.model_source!='store':
+                self.stop()
             changed = {
                 name
                 for name, value in next_config.to_dict().items()
@@ -296,6 +331,10 @@ class RealtimeEngine:
             }
 
     def validate_model(self) -> None:
+        if self.gui_config.model_source=='store':
+            if self._store_data is None or self._store_data['model_id']!=self.gui_config.store_model_id or self._store_data['revision']!=self.gui_config.store_revision:
+                raise PermissionError('请从商城重新选择已授权的音色。')
+            return
         if not self.gui_config.pth_path:
             raise ValueError("请先选择 .pth 音色模型。")
         if not Path(self.gui_config.pth_path).is_file():
@@ -360,6 +399,7 @@ class RealtimeEngine:
                     self.gui_config.index_rate,
                     self.config,
                     self.rvc,
+                    store_data=self._store_data if self.gui_config.model_source=='store' else None,
                 )
                 self.samplerate = (
                     self.rvc.tgt_sr
@@ -380,17 +420,24 @@ class RealtimeEngine:
                 self.last_error = str(exc)
                 self.log.exception("Unable to start realtime stream")
                 self._stop_stream_unlocked()
+                if self.gui_config.model_source=='store':
+                    self.rvc=None; self._store_data=None
+                    if torch.cuda.is_available(): torch.cuda.empty_cache()
                 raise
 
     def stop(self) -> dict[str, Any]:
         with self._lock:
             self._stop_stream_unlocked()
+            if self.gui_config.model_source=='store':
+                self.rvc=None; self._store_data=None
+                if torch.cuda.is_available(): torch.cuda.empty_cache()
             return self.status()
 
     def close(self) -> None:
         with self._lock:
             self._stop_stream_unlocked()
             self.rvc = None
+            self._store_data = None
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
@@ -592,7 +639,7 @@ class RealtimeEngine:
         return {
             "running": self.running,
             "restart_required": self.restart_required,
-            "model_loaded": bool(self.rvc is not None),
+            "model_loaded": bool(self.rvc is not None or self._store_data is not None),
             "model_path": self.gui_config.pth_path,
             "input_level": round(self.input_level, 5),
             "output_level": round(self.output_level, 5),

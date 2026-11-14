@@ -57,6 +57,7 @@ def main() -> int:
     log = configure_logging(Path(bootstrap["log_dir"]))
     log.info("Starting RVC Studio engine")
     engine = RealtimeEngine(log.getChild("engine"))
+    engine.store_public_key=bootstrap.get('store_public_key_pem','')
     legacy_config = ROOT / "configs" / "config.json"
     app_config = Path(bootstrap["app_config"])
     first_run = not app_config.exists()

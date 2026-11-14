@@ -13,15 +13,13 @@ public sealed class RvcStudioApiClient : IDisposable
     };
     private readonly HttpClient _client;
 
-    public RvcStudioApiClient()
+    public RvcStudioApiClient(HttpClient? client=null)
     {
         var configuredUrl = Environment.GetEnvironmentVariable("RVC_STUDIO_API_URL");
         var baseUrl = string.IsNullOrWhiteSpace(configuredUrl) ? DefaultApiUrl : configuredUrl.Trim();
-        _client = new HttpClient
-        {
-            BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/"),
-            Timeout = TimeSpan.FromSeconds(25)
-        };
+        _client=client??new HttpClient();
+        _client.BaseAddress ??= new Uri(baseUrl.TrimEnd('/')+"/");
+        _client.Timeout=TimeSpan.FromSeconds(25);
     }
 
     public Task<bool> SendVerificationCodeAsync(string email, CancellationToken token = default) =>
@@ -100,6 +98,8 @@ public sealed class RvcStudioApiClient : IDisposable
     private async Task<T> SendAsync<T>(HttpRequestMessage request, CancellationToken token)
     {
         using var response = await _client.SendAsync(request, token);
+        if((int)response.StatusCode>=500 || response.StatusCode is System.Net.HttpStatusCode.RequestTimeout or System.Net.HttpStatusCode.TooManyRequests)
+            throw new HttpRequestException("账号服务暂不可连接，请稍后重试。",null,response.StatusCode);
         var json = await response.Content.ReadAsStringAsync(token);
         ApiEnvelope<T>? envelope;
         try
@@ -108,7 +108,7 @@ public sealed class RvcStudioApiClient : IDisposable
         }
         catch (JsonException exception)
         {
-            throw new RvcStudioApiException($"服务端返回了无法识别的数据：{exception.Message}");
+            throw new HttpRequestException("账号服务返回了无法识别的数据，请稍后重试。",exception);
         }
         if (!response.IsSuccessStatusCode || envelope?.Success != true || envelope.Data is null)
         {

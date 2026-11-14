@@ -1,0 +1,83 @@
+RVC Studio 模型商城：部署与验收
+
+默认状态：关闭。RVC_STORE_ENABLED 未设置、不是 true 或安全配置缺失时，登录/会员支付继续使用现有流程。
+本次仅实现并验证本地代码；尚未执行生产迁移、生产上传、生产账号切换或上线。
+
+1. 数据库
+   备份现有 MySQL 数据库，再执行 Database/Migrations/20261114_rvc_store.sql。
+   四张表采用新增方式。管理员映射只在表为空且恰有一个有效 RVC_STUDIO / xlz 账号时初始化；
+   后续权限查 USER_ID，不按客户端字段或用户名判定，不改变 RVC_USER.USER_TYPE。
+   检查 RVC_STORE_ADMIN 恰有预期 xlz 的 ID；无匹配或多条匹配时不要启用，先核对账号。
+   七个初始商品中，四个免费内置条目可见，三个会员条目为草稿。
+
+2. 服务器 Secret（不要写进 Git、镜像、日志或客户端）
+   RVC_STORE_ENABLED=false                       发布验证阶段保持 false
+   RVC_STORE_SIGNING_PRIVATE_KEY_PEM              独立 RSA 私钥，至少 2048 位，建议 3072 位
+   RVC_STORE_MASTER_KEY                           随机 32 字节的 Base64，用于封装每版本内容密钥
+   RVC_STUDIO_TOKEN_KEY                           现有账号 JWT 密钥，至少 32 字符，不使用开发回退值
+   HF_TOKEN                                      仅授权 xulezuo/RvcStudio 写入的细粒度 HF Token
+   RVC_STORE_HF_REPOSITORY=xulezuo/RvcStudio
+   RVC_STORE_DATA_DIR=/var/lib/rvc-store           持久卷；仅后台服务账号可读写
+   RVC_STORE_UPLOAD_LIMIT=1073741824               文件总大小限制，默认 1 GiB
+   RVC_STORE_PYTHON=/opt/rvc-store/bin/python      Dockerfile 已安装并锁定依赖
+
+   可在部署机生成密钥：openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out store-private.pem
+   导出公钥：openssl pkey -in store-private.pem -pubout -out store-public.pem
+   随机主密钥：openssl rand -base64 32
+   私钥与主密钥应在 Secret 管理和加密备份中保存。丢失主密钥不能恢复历史内容授权；
+   直接替换签名密钥会使已有客户端和离线授权失效，轮换需要专门迁移。
+   此版本上传工作器采用单后台实例部署；横向扩容前需引入分布式任务租约。
+
+3. 反向代理与容器
+   仅将 /api/RvcStore 暴露给 HTTPS；DATA_DIR 不得作为静态目录提供。
+   nginx 的 /api/RvcStore/Upload：client_max_body_size 1100m; proxy_request_buffering off;
+   proxy_read_timeout 1800s; proxy_send_timeout 1800s; client_body_timeout 1800s;
+   若提高文件上限，同步调整代理和 ASP.NET 当前 2 GiB 请求硬上限。
+   Download 保留 Range / If-Range / Content-Range / Accept-Ranges，勿在代理层压缩二进制流。
+   持久卷为上传原件、失败任务、加密缓存预留至少“最大上传量的 4 倍 + 已发布缓存”空间。
+   失败草稿会保留原始模型以便重试，仅服务端可访问；成功后删除任务目录原件。
+   备份 MySQL 与 DATA_DIR，限制服务账号权限，按服务器日志 JobId 排查任务失败。
+
+4. 客户端构建
+   将 store-public.pem 内容设置为构建变量 RVC_STORE_PUBLIC_KEY_PEM（公开变量，不含私钥）。
+   packaging/Build-Release.ps1 会生成并嵌入 store-trust.json。
+   测试构建可用 -p:StoreTrustFile=<绝对 JSON 文件>；JSON 字段 apiUrl / publicKeyPem。
+   RVC_STUDIO_STORE_API_URL 仅覆盖测试服务地址，必须为 HTTPS；不能覆盖受信公钥。
+   客户端和 Python 使用相同内置公钥。默认空公钥构建只展示内置资源，不能接受商城授权。
+   安装包使用 Copy-BuiltinModels.ps1 白名单，仅含旧四免费模型和已有三个索引。
+   不删除开发机器原始会员模型；商城资源存储在用户 AppData，不纳入安装/更新清理范围。
+
+5. 测试环境验证后才向用户开放
+   在独立测试部署启用并检查：普通账号 Upload/Publish/Unpublish 被拒，篡改 CanManageStore 无效；
+   xlz 获得签名管理员快照，上传完整模型/index/封面/用户授权的录音变声试听，状态 Ready 后才能 Publish。
+   上传到 store/models/<商品ID>/<不可变版本ID>/；HF 不出现原始模型、索引、授权或密钥文件。
+   注入上传失败/重启/重复重试：草稿不可下载，同版本内容不得改变，旧版继续可用。
+   会员下载 -> 退出软件 -> 断网重启 -> 加载；磁盘仅有 .rvcm 与 DPAPI .grant，没有明文副本。
+   离线过期/运行中到期不中断；在线刷新降级后下一次启用失败；续费刷新后无需重下。
+   账号退出/切换立即停止商城模型；另一个账号不能复用授权；删除下载不影响别的账号授权。
+   验证下载取消/断点/损坏重试、本地导入导出、四免费模型、支付、小包更新和安装保留用户数据。
+   完成上述真实流程，记录结果，最后再在正式后台设置 RVC_STORE_ENABLED=true。
+
+6. 已有离线验证入口
+   dotnet test Server.NetCore.Tests/Server.NetCore.Tests.csproj
+   python Server.NetCore.Tests/test_store_publishing.py
+   客户端：dotnet test studio/RvcStudio.App.Tests/RvcStudio.App.Tests.csproj
+   免费包边界：pwsh -File packaging/Test-StorePackaging.ps1
+   真模型跨语言：先给后台测试设置 RVC_STORE_INTEROP_ROOT 和 RVC_STORE_INTEROP_MODELS，
+   再用 bundled runtime/python.exe -X utf8 -I packaging/Test-StoreEngine.py <fixture-dir>。
+   此测试在内存中执行 torch/FAISS 和变声回调，不打开音频设备；测试密钥仅限本地 fixture。
+
+会员语义：最近一次成功联网快照为准，离线不按本地日期降级，运行会话保留开始资格。
+后台网络下载/新授权仍检查服务器实际到期日。加密防止直接找到并导出，不承诺防管理员或逆向。
+
+2026-11-14 核对补充：
+- 首批试听改用用户授权的实际录音经 RVC 实时流程生成的七个 2.9013 秒小样。
+  对应文件和 SHA-256 记录在客户端 Assets/Store/previews.json，未复制原始录音或原始处理流。
+- 客户端一级商品卡片直接提供试听/使用、下载进度及取消。服务不可用时标明本地试听，
+  不把占位商品误标为真实“准备中”；上架状态以联网目录接口结果为准。
+- 当前 https://thankful.top/api/RvcStore/Catalog 返回 HTTP 404，本地商城改动尚未提交推送。
+- 远端 master 的 .github/workflows/dotnet.yml 是 netcore-ci：push/PR 执行验证与容器构建；
+  workflow_dispatch 的 publish_image 才发布 SHA 标签镜像。production.yml 的
+  production-operations 使用 image_sha 手动选择已验证版本部署，并支持回滚。
+- 本地后台 checkout 的基线落后于远端。正式提交前需先合并远端 master，再整合商城改动；
+  保留上述生产工作流，不能以本地旧自动部署脚本覆盖远端现行流程。

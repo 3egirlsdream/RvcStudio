@@ -35,6 +35,13 @@ foreach ($inputPath in $requiredInputs) {
 }
 
 New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null
+# Dependency archives are public build inputs: apply the same free-model boundary as installers.
+$freeModels=@('guanguanV1','keruanV1','kikiV1','youzhanv2-xi')
+foreach($tree in @('weights','indices')) {
+    $unexpected=@(Get-ChildItem -LiteralPath (Join-Path $StageRoot "assets\$tree") -File |
+        Where-Object { $_.Extension -in @('.pth','.index') -and $_.BaseName -notin $freeModels })
+    if($unexpected.Count) {throw 'Unapproved membership models or indices cannot enter public dependency archives.'}
+}
 $resolvedOutput = [IO.Path]::GetFullPath($OutputRoot).TrimEnd('\') + '\'
 Get-ChildItem -LiteralPath $OutputRoot -File -Filter "$ArchivePrefix.7z*" | ForEach-Object {
     if (-not $_.FullName.StartsWith($resolvedOutput, [StringComparison]::OrdinalIgnoreCase)) {

@@ -6,6 +6,10 @@ param(
     [string]$UpdateServiceUrl = 'https://thankful.top',
     [ValidatePattern('^https?://')]
     [string]$UpdatePath = 'https://thankful.top',
+    [string]$UpdateRepository = $env:HF_RELEASE_REPOSITORY,
+    [string]$UpdatePublicKeyPem = $env:RVC_UPDATE_PUBLIC_KEY_PEM,
+    [string]$StorePublicKeyPem = $env:RVC_STORE_PUBLIC_KEY_PEM,
+    [switch]$PublishVersion,
     [switch]$SkipInstaller,
     [switch]$SkipManifest,
     [switch]$SkipVersionPublish,
@@ -14,6 +18,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'PowerShell 7 is required. Run this script with pwsh.exe.' }
+if ($SkipManifest -and -not $SkipInstaller) { throw 'Full installers require release-manifest.json for safe obsolete-file cleanup. Use -SkipInstaller with -SkipManifest.' }
 $PackagingRoot = $PSScriptRoot
 $RvcRoot = Split-Path -Parent $PackagingRoot
 $AppProject = Join-Path $RvcRoot 'studio\RvcStudio.App\RvcStudio.App.csproj'
@@ -189,6 +195,7 @@ $requiredInputs = @(
     (Join-Path $RvcRoot 'assets\rmvpe\rmvpe.pt'),
     (Join-Path $PackagingRoot 'RVCStudio.iss'),
     (Join-Path $PackagingRoot 'verify_release.py'),
+    (Join-Path $PackagingRoot 'Test-InstallerCleanup.ps1'),
     (Join-Path $PackagingRoot 'generate_package_manifest.py')
 )
 foreach ($requiredInput in $requiredInputs) {
@@ -219,6 +226,14 @@ $dotnetVersion = (& dotnet --version).Trim()
 if ($LASTEXITCODE -ne 0) {
     throw 'Unable to query the installed .NET SDK.'
 }
+if (-not [string]::IsNullOrWhiteSpace($StorePublicKeyPem)) {
+    if ($StorePublicKeyPem -match 'PRIVATE KEY') { throw 'Store client trust must contain only a public key.' }
+    $storeRsa=[Security.Cryptography.RSA]::Create()
+    try {
+        $storeRsa.ImportFromPem($StorePublicKeyPem)
+        if ($storeRsa.KeySize -lt 2048) { throw 'Store public key must have at least 2048 bits.' }
+    } finally { $storeRsa.Dispose() }
+}
 Write-Host "RVC Studio package preflight passed (.NET SDK $dotnetVersion, version $Version)." -ForegroundColor Green
 if ($PreflightOnly) {
     Write-Host 'Preflight-only mode: no files were changed.' -ForegroundColor Yellow
@@ -231,6 +246,11 @@ if ($drive.AvailableFreeSpace -lt 15GB) {
 }
 
 New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null
+$trustPath = Join-Path $OutputRoot 'update-trust.json'
+$manifestUrl = if ([string]::IsNullOrWhiteSpace($UpdateRepository)) { '' } else { "https://huggingface.co/$UpdateRepository/resolve/main/updates/stable.json" }
+[IO.File]::WriteAllText($trustPath, (@{ manifestUrl = $manifestUrl; publicKeyPem = $UpdatePublicKeyPem } | ConvertTo-Json -Compress), [Text.UTF8Encoding]::new($false))
+$storeTrustPath = Join-Path $OutputRoot 'store-trust.json'
+[IO.File]::WriteAllText($storeTrustPath, (@{ apiUrl = 'https://thankful.top'; publicKeyPem = $StorePublicKeyPem } | ConvertTo-Json -Compress), [Text.UTF8Encoding]::new($false))
 $installerAssets = Join-Path $PackagingRoot 'installer-assets'
 New-Item -ItemType Directory -Path $installerAssets -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $RvcRoot 'LICENSE') -Destination (Join-Path $installerAssets 'LICENSE') -Force
@@ -244,10 +264,13 @@ Reset-SafeDirectory -Path $PublishRoot
     -p:IncludeNativeLibrariesForSelfExtract=true `
     -p:DebugType=None `
     -p:DebugSymbols=false `
+    "-p:UpdateTrustFile=$trustPath" `
+    "-p:StoreTrustFile=$storeTrustPath" `
     -o $PublishRoot
 if ($LASTEXITCODE -ne 0) {
     throw "dotnet publish failed with exit code $LASTEXITCODE"
 }
+& (Join-Path $PackagingRoot 'Test-InstallerCleanup.ps1') -Executable (Join-Path $PublishRoot 'RVC Studio.exe')
 Copy-Item -LiteralPath (Join-Path $PublishRoot 'RVC Studio.exe') -Destination $StageRoot
 
 $runtimeSource = Join-Path $RvcRoot 'runtime'
@@ -273,9 +296,10 @@ Invoke-Robocopy -Source $runtimeSource -Destination (Join-Path $StageRoot 'runti
 foreach ($tree in @('engine', 'configs', 'infer', 'i18n', 'tools')) {
     Copy-Tree -RelativePath $tree
 }
-foreach ($asset in @('assets\hubert_base', 'assets\weights', 'assets\indices')) {
+foreach ($asset in @('assets\hubert_base')) {
     Copy-Tree -RelativePath $asset
 }
+& (Join-Path $PackagingRoot 'Copy-BuiltinModels.ps1') -SourceRoot $RvcRoot -StageRoot $StageRoot
 New-Item -ItemType Directory -Path (Join-Path $StageRoot 'assets\rmvpe') -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $RvcRoot 'assets\rmvpe\rmvpe.pt') -Destination (Join-Path $StageRoot 'assets\rmvpe\rmvpe.pt')
 
@@ -317,6 +341,8 @@ if (-not $AllowNoCudaDevice) {
 if ($LASTEXITCODE -ne 0) {
     throw "Staged release health check failed with exit code $LASTEXITCODE"
 }
+
+& (Join-Path $PackagingRoot 'Build-Update.ps1') -Phase Prepare -Version $Version
 
 if (-not $SkipManifest) {
     & $stagePython -I (Join-Path $PackagingRoot 'generate_package_manifest.py') --root $StageRoot
@@ -362,7 +388,8 @@ if (-not $SkipInstaller) {
     $hashLines | Set-Content -LiteralPath (Join-Path $InstallerRoot 'SHA256SUMS.txt') -Encoding ascii
     $installerMeasure = Get-ChildItem -LiteralPath $InstallerRoot -File | Measure-Object Length -Sum
     Write-Output ("Installer output: {0} files, {1:N2} GiB" -f $installerMeasure.Count, ($installerMeasure.Sum / 1GB))
-    if ($SkipVersionPublish) {
+    & (Join-Path $PackagingRoot 'Build-Update.ps1') -Phase Finalize -Version $Version -ReleaseNotes $ReleaseNotes -Repository $UpdateRepository -PublicKeyPem $UpdatePublicKeyPem
+    if ($SkipVersionPublish -or -not $PublishVersion) {
         Write-Host 'Server version publishing was skipped by request.' -ForegroundColor Yellow
     }
     else {

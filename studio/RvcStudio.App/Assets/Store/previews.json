@@ -1,0 +1,65 @@
+[
+  {
+    "name": "莞宁",
+    "id": "10000000000000000000000000000001",
+    "sha256": "3DAA41AE28DB220AED15F949B2EA4FC9FE2D07B0086A6EED2CC8EA6089DD7E45",
+    "durationSeconds": 2.9013,
+    "file": "10000000000000000000000000000001.wav",
+    "processing": "RealtimeEngine._prepare_buffers + RealtimeEngine._audio_callback",
+    "source": "user-recording-rvc-output"
+  },
+  {
+    "name": "可棠",
+    "id": "10000000000000000000000000000002",
+    "sha256": "7A466E36186CA6D3A9DEBD8A123FECC1CC5C4565F21FEF11F21AFB43D4F01C93",
+    "durationSeconds": 2.9013,
+    "file": "10000000000000000000000000000002.wav",
+    "processing": "RealtimeEngine._prepare_buffers + RealtimeEngine._audio_callback",
+    "source": "user-recording-rvc-output"
+  },
+  {
+    "name": "绮音",
+    "id": "10000000000000000000000000000003",
+    "sha256": "548877D9B55E4E0E97DCE9F4912484055A24531E4E0E4D4DF130DA37C267D30E",
+    "durationSeconds": 2.9013,
+    "file": "10000000000000000000000000000003.wav",
+    "processing": "RealtimeEngine._prepare_buffers + RealtimeEngine._audio_callback",
+    "source": "user-recording-rvc-output"
+  },
+  {
+    "name": "星澜",
+    "id": "20000000000000000000000000000001",
+    "sha256": "1DC072C7E6424D1C64FDC6816CD39C1DA84DEE3B9B8058C6FAF2454CB0A37C68",
+    "durationSeconds": 2.9013,
+    "file": "20000000000000000000000000000001.wav",
+    "processing": "RealtimeEngine._prepare_buffers + RealtimeEngine._audio_callback",
+    "source": "user-recording-rvc-output"
+  },
+  {
+    "name": "晴栀",
+    "id": "20000000000000000000000000000002",
+    "sha256": "ACC32C93251756A0C1E9D4D9DDDF6C1B03CB642893766A1A6B0C36B4B2DAAE5F",
+    "durationSeconds": 2.9013,
+    "file": "20000000000000000000000000000002.wav",
+    "processing": "RealtimeEngine._prepare_buffers + RealtimeEngine._audio_callback",
+    "source": "user-recording-rvc-output"
+  },
+  {
+    "name": "知夏",
+    "id": "20000000000000000000000000000003",
+    "sha256": "CEFFA65550D0BD5099325D30D4249F9AFCC0D9CD10F93F323725213968FAA796",
+    "durationSeconds": 2.9013,
+    "file": "20000000000000000000000000000003.wav",
+    "processing": "RealtimeEngine._prepare_buffers + RealtimeEngine._audio_callback",
+    "source": "user-recording-rvc-output"
+  },
+  {
+    "name": "悠汐",
+    "id": "10000000000000000000000000000004",
+    "sha256": "3572A1953DB3A9BB9776CA075FEEFBE41A9F252C4A873C0913E98654CE2E174B",
+    "durationSeconds": 2.9013,
+    "file": "10000000000000000000000000000004.wav",
+    "processing": "RealtimeEngine._prepare_buffers + RealtimeEngine._audio_callback",
+    "source": "user-recording-rvc-output"
+  }
+]

@@ -32,7 +32,9 @@ public sealed record ModelChoice(
     string IndexPath,
     bool IsExternal)
 {
-    public string DisplayName => IsExternal ? $"外部 · {Name}" : Name;
+    public bool IsStore => ModelPath.StartsWith("store://",StringComparison.Ordinal);
+    public string Source => IsStore ? "商城" : BuiltinVoices.Find(System.IO.Path.GetFileName(ModelPath)) is not null ? "内置" : "本地";
+    public string DisplayName => $"{Source} · {Name}";
 }
 
 public sealed record EngineStatus(
