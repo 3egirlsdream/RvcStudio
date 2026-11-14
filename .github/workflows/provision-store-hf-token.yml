@@ -1,0 +1,35 @@
+name: Provision encrypted store credential
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  seal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --disable-pip-version-check PyNaCl==1.6.2
+      - name: Seal HF credential for Server.NetCore Actions
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python - <<'PY'
+          import base64, json, os, pathlib
+          from nacl.public import PublicKey, SealedBox
+          token = os.environ['HF_TOKEN'].strip()
+          if not token:
+              raise SystemExit('HF_TOKEN is not configured')
+          public = base64.b64decode('xiwzuLOH+C4EkI4EtTdsUyk42Ya3fXPqIdqujK/Nlm4=')
+          encrypted = base64.b64encode(SealedBox(PublicKey(public)).encrypt(token.encode())).decode()
+          pathlib.Path('store-credential.json').write_text(json.dumps({
+              'encrypted_value': encrypted, 'key_id': '3380204578043523366'
+          }))
+          print('Encrypted credential prepared for the fixed destination repository.')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: store-credential
+          path: store-credential.json
+          retention-days: 1
