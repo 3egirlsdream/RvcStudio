@@ -1,0 +1,25 @@
+name: Publish encrypted store drafts
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/5 * * * *'
+permissions:
+  contents: read
+concurrency:
+  group: rvc-store-publisher
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --disable-pip-version-check -r packaging/store-publisher-requirements.txt
+      - name: Publish approved ciphertext and verify remote hashes
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          STORE_PUBLISHER_KEY: ${{ secrets.STORE_PUBLISHER_KEY }}
+        run: python packaging/Publish-StoreQueue.py
