@@ -315,6 +315,7 @@ Copy-Item -LiteralPath (Join-Path $PackagingRoot 'THIRD-PARTY-NOTICES.txt') -Des
 Copy-Item -LiteralPath (Join-Path $PackagingRoot 'verify_release.py') -Destination (Join-Path $StageRoot 'tools\package_healthcheck.py')
 New-Item -ItemType Directory -Path (Join-Path $StageRoot 'licenses') -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $PackagingRoot 'vendor\inno\Inno-Setup-License.txt') -Destination (Join-Path $StageRoot 'licenses\Inno-Setup-License.txt')
+Copy-Item -LiteralPath (Join-Path $RvcRoot 'studio\RvcStudio.App\Assets\Store\Icons\LICENSE.txt') -Destination (Join-Path $StageRoot 'licenses\Phosphor-Icons-LICENSE.txt')
 
 $licenseRoot = Join-Path $StageRoot 'licenses\python-packages'
 New-Item -ItemType Directory -Path $licenseRoot -Force | Out-Null

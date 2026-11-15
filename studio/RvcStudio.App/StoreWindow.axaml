@@ -1,24 +1,83 @@
 <Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="using:RvcStudio.App"
         x:Class="RvcStudio.App.StoreWindow" Title="RVC Studio · 音色商城"
-        Width="990" Height="760" MinWidth="760" MinHeight="580" WindowStartupLocation="CenterOwner">
-  <Grid Background="#0E110F" RowDefinitions="Auto,Auto,*,Auto">
-    <Border Grid.Row="0" Padding="24,20" Background="#141A15" BorderBrush="#2E3B2F" BorderThickness="0,0,0,1">
-      <Grid ColumnDefinitions="*,Auto">
-        <StackPanel Spacing="5"><TextBlock Text="VOICE COLLECTION" Classes="eyebrow"/><TextBlock Text="发现你的下一种声音" FontSize="26" FontWeight="SemiBold"/><TextBlock Text="试听、下载，在工作台中直接使用。" Classes="muted"/></StackPanel>
-        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-          <Button x:Name="ManageButton" Click="Manage_Click" IsVisible="False">商城管理</Button>
-          <Button Click="Account_Click">账号 / 会员</Button><Button Click="Refresh_Click">刷新</Button>
+        Classes="store-gallery" Background="#0E110F" Foreground="#EEF2EE"
+        FontSize="14" Width="1200" Height="900" MinWidth="740" MinHeight="620"
+        WindowStartupLocation="CenterOwner">
+  <Window.Styles>
+    <!-- Layout only. Palette, typography and primary controls inherit the app theme. -->
+    <Style Selector="Button.store-nav">
+      <Setter Property="MinHeight" Value="55"/><Setter Property="Padding" Value="7,0"/>
+      <Setter Property="Background" Value="Transparent"/><Setter Property="BorderBrush" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="0,0,0,3"/><Setter Property="CornerRadius" Value="0"/>
+      <Setter Property="FontSize" Value="14"/>
+    </Style>
+    <Style Selector="Button.store-nav.selected"><Setter Property="Foreground" Value="#B7F36B"/><Setter Property="BorderBrush" Value="#B7F36B"/></Style>
+    <Style Selector="Button.store-nav.selected TextBlock"><Setter Property="Foreground" Value="#B7F36B"/></Style>
+    <Style Selector="Button.store-filter">
+      <Setter Property="MinHeight" Value="42"/><Setter Property="Padding" Value="9,0"/>
+      <Setter Property="Background" Value="Transparent"/><Setter Property="BorderBrush" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="0,0,0,3"/><Setter Property="CornerRadius" Value="0"/>
+      <Setter Property="FontSize" Value="14"/>
+    </Style>
+    <Style Selector="Button.store-filter.selected"><Setter Property="Foreground" Value="#B7F36B"/><Setter Property="BorderBrush" Value="#B7F36B"/></Style>
+    <Style Selector="Button.store-filter.selected TextBlock"><Setter Property="Foreground" Value="#B7F36B"/></Style>
+    <Style Selector="Button.store-link"><Setter Property="BorderThickness" Value="0"/><Setter Property="Background" Value="Transparent"/><Setter Property="Foreground" Value="#B7F36B"/></Style>
+    <Style Selector="Button.store-link TextBlock"><Setter Property="Foreground" Value="#B7F36B"/></Style>
+    <Style Selector="Button.store-icon"><Setter Property="Width" Value="30"/><Setter Property="Height" Value="30"/><Setter Property="MinHeight" Value="30"/><Setter Property="Padding" Value="6"/></Style>
+  </Window.Styles>
+  <Grid RowDefinitions="Auto,Auto,Auto,Auto,*">
+    <Border Background="#141A15" BorderBrush="#2E3B2F" BorderThickness="0,0,0,1">
+      <Grid x:Name="Navigation" Margin="44,0" ColumnDefinitions="Auto,Auto,*,Auto">
+        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center" Margin="0,0,22,0">
+          <Image Source="/Assets/rvc-studio-icon.png" Width="29" Height="29" Stretch="Uniform"/>
+          <TextBlock Text="RVC Studio" FontSize="20" FontWeight="Bold" VerticalAlignment="Center"/>
+          <Border Width="1" Height="20" Background="#323935" Margin="14,0,2,0"/>
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="20">
+          <Button x:Name="BrowseNav" Content="音色商城" Classes="store-nav selected" Click="Browse_Click"/>
+          <Button x:Name="DownloadsNav" Content="已下载" Classes="store-nav" Click="Downloads_Click"/>
+          <Button Content="返回工作台" Classes="store-nav" Click="Back_Click"/>
+        </StackPanel>
+        <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+          <Button x:Name="AccountButton" Classes="store-link" Click="Account_Click" ToolTip.Tip="账号与会员"/>
+          <Border x:Name="ManageDivider" Width="1" Height="20" Background="#323935" IsVisible="False"/>
+          <Button x:Name="ManageButton" Content="商城管理" Classes="store-link" Click="Manage_Click" IsVisible="False"/>
         </StackPanel>
       </Grid>
     </Border>
-    <Grid Grid.Row="1" Margin="24,14" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
-      <TextBox x:Name="SearchBox" PlaceholderText="搜索音色名称" TextChanged="Filter_Changed"/>
-      <CheckBox Grid.Column="1" x:Name="DownloadedOnly" Content="已下载" IsCheckedChanged="Filter_Changed"/>
-      <CheckBox Grid.Column="2" x:Name="FreeOnly" Content="免费" IsCheckedChanged="Filter_Changed"/>
+    <Grid Grid.Row="1" x:Name="Heading" Margin="44,25,44,8" ColumnDefinitions="*,Auto">
+      <StackPanel Orientation="Horizontal" Spacing="22" VerticalAlignment="Center">
+        <TextBlock Text="音色商城" FontSize="32" FontWeight="Bold" VerticalAlignment="Center"/>
+        <TextBlock x:Name="Subtitle" Text="先试听，再选择你的声音。" Classes="muted" FontSize="13" VerticalAlignment="Center"/>
+      </StackPanel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+        <TextBox x:Name="SearchBox" Width="292" PlaceholderText="搜索音色" TextChanged="Search_Changed"/>
+        <Button x:Name="RefreshButton" Classes="store-icon" Click="Refresh_Click" ToolTip.Tip="刷新商城与会员状态"/>
+      </StackPanel>
     </Grid>
-    <ScrollViewer Grid.Row="2" Margin="17,0,17,12" HorizontalScrollBarVisibility="Disabled">
-      <WrapPanel x:Name="Cards" Orientation="Horizontal"/>
-    </ScrollViewer>
-    <Border Grid.Row="3" Padding="24,12" Background="#141A15"><TextBlock x:Name="StatusText" Text="正在读取音色…" TextWrapping="Wrap" Foreground="#BBC8BD"/></Border>
+    <Grid Grid.Row="2" x:Name="Filters" Margin="44,0,44,0" ColumnDefinitions="*,Auto">
+      <Border BorderBrush="#2C332F" BorderThickness="0,0,0,1"/>
+      <StackPanel Orientation="Horizontal" Spacing="22">
+        <Button x:Name="AllFilter" Content="全部" Classes="store-filter selected" Tag="All" Click="Filter_Click"/>
+        <Button x:Name="FreeFilter" Content="免费" Classes="store-filter" Tag="Free" Click="Filter_Click"/>
+        <Button x:Name="MemberFilter" Content="会员" Classes="store-filter" Tag="Member" Click="Filter_Click"/>
+        <Button x:Name="DownloadedFilter" Content="已下载" Classes="store-filter" Tag="Downloaded" Click="Filter_Click"/>
+      </StackPanel>
+      <Button Grid.Column="1" x:Name="AddButton" Classes="store-link" Click="Add_Click" Content="新建音色" IsVisible="False"/>
+    </Grid>
+    <Border Grid.Row="3" x:Name="StatusBanner" Margin="44,12,44,0" Background="#1E2B1A" CornerRadius="8" Padding="12,9" IsVisible="False">
+      <TextBlock x:Name="StatusText" FontSize="12" TextWrapping="Wrap" Foreground="#BBC8BD"/>
+    </Border>
+    <Grid Grid.Row="4">
+      <ScrollViewer x:Name="GalleryScroll" Margin="44,24,38,16" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <local:StoreGalleryPanel x:Name="Cards" Margin="0,0,6,0"/>
+      </ScrollViewer>
+      <StackPanel x:Name="EmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12" Margin="30">
+        <TextBlock x:Name="EmptyTitle" Text="正在读取音色…" FontSize="22" FontWeight="SemiBold" TextAlignment="Center"/>
+        <TextBlock x:Name="EmptyDescription" Classes="muted" Text="精彩音色，即将呈现。" FontSize="13" TextAlignment="Center"/>
+        <Button x:Name="ResetFilterButton" Content="查看全部音色" Classes="store-link" Click="Browse_Click" HorizontalAlignment="Center" IsVisible="False"/>
+      </StackPanel>
+    </Grid>
   </Grid>
 </Window>

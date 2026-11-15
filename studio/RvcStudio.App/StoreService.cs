@@ -1,4 +1,5 @@
 using System.Net;
+using System.Collections.Concurrent;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
@@ -11,6 +12,8 @@ public sealed class StoreService : IDisposable
 {
     private readonly HttpClient _client;
     private readonly AccountService _accounts;
+    private readonly ConcurrentDictionary<string,SemaphoreSlim> _assetLocks=new();
+    private readonly SemaphoreSlim _coverSlots=new(1,1),_previewSlots=new(2,2);
     public StoreTrust Trust { get; }
     public string CacheRoot { get; }
     public string Status { get; private set; } = "";
@@ -54,6 +57,7 @@ public sealed class StoreService : IDisposable
         return path;
     }
     private string GrantName => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(_accounts.Account?.Id??"anonymous")))+".grant";
+    internal string MediaPath(string filename)=>SafeCachePath("Media",filename);
     public bool IsDownloaded(StoreItem item) => StoreCrypto.ValidId(item.Revision) && File.Exists(Path.Combine(Folder(item.Id,item.Revision),"content.rvcm")) && File.Exists(Path.Combine(Folder(item.Id,item.Revision),GrantName));
     public IReadOnlyList<StoreItem> Downloaded()
     {
@@ -146,9 +150,34 @@ public sealed class StoreService : IDisposable
     public async Task<byte[]> AssetAsync(string path,CancellationToken token=default)
     {
         if(!path.StartsWith("api/RvcStore/Asset?",StringComparison.Ordinal)) throw new InvalidDataException("商城资源地址无效。");
-        using var request=Request(HttpMethod.Get,path); using var response=await _client.SendAsync(request,HttpCompletionOption.ResponseHeadersRead,token); response.EnsureSuccessStatusCode();
-        await using var input=await response.Content.ReadAsStreamAsync(token); using var output=new MemoryStream(); var buffer=new byte[65536];
-        while(true) {var n=await input.ReadAsync(buffer,token);if(n==0)break;if(output.Length+n>33554432)throw new InvalidDataException("试听或封面过大。");output.Write(buffer,0,n);} return output.ToArray();
+        // Never cache a mutable "current version" URL. Published revision URLs are immutable.
+        var revision=path.Split('?',2)[1].Split('&').FirstOrDefault(p=>p.StartsWith("revision=",StringComparison.Ordinal))?[9..];
+        var cachePath=StoreCrypto.ValidId(revision??"")?SafeCachePath("Media","Assets",Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(path)))+".asset"):null;
+        var gate=_assetLocks.GetOrAdd(path,_=>new SemaphoreSlim(1,1));await gate.WaitAsync(token);
+        try
+        {
+            var preview=path.Contains("kind=preview",StringComparison.Ordinal);
+            if(cachePath is not null && await StoreAssetCache.ReadAsync(cachePath,token) is { } cached && (!preview||StoreMedia.AudioExtension(cached) is not null))return cached;
+            // Large covers must not queue ahead of a small interactive preview.
+            var slots=preview?_previewSlots:_coverSlots;await slots.WaitAsync(token);
+            byte[] bytes;
+            try
+            {
+                using var stall=CancellationTokenSource.CreateLinkedTokenSource(token);stall.CancelAfter(TimeSpan.FromSeconds(30));
+                using var request=Request(HttpMethod.Get,path);using var response=await _client.SendAsync(request,HttpCompletionOption.ResponseHeadersRead,stall.Token);response.EnsureSuccessStatusCode();
+                await using var input=await response.Content.ReadAsStreamAsync(stall.Token);using var output=new MemoryStream();var buffer=new byte[65536];
+                while(true){var n=await input.ReadAsync(buffer,stall.Token);if(n==0)break;if(output.Length+n>StoreAssetCache.MaximumBytes)throw new InvalidDataException("试听或封面过大。");output.Write(buffer,0,n);}
+                bytes=output.ToArray();
+                if(preview&&StoreMedia.AudioExtension(bytes) is null)throw new InvalidDataException("试听音频格式无效。");
+            }
+            finally {slots.Release();}
+            if(cachePath is not null)
+                try {await StoreAssetCache.WriteAsync(cachePath,bytes,token);}
+                catch(IOException) { /* A public media cache failure must not prevent playback. */ }
+                catch(UnauthorizedAccessException) { }
+            return bytes;
+        }
+        finally {gate.Release();}
     }
     public async Task<StoreJobStatus> UploadAsync(StoreItem item,string? model,string? index,string cover,string preview,string recommended,CancellationToken token)
     {

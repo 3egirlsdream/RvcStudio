@@ -27,3 +27,9 @@ Avalonia
 Other Python packages
   Package names, versions, declared licenses, and license files are copied to
   the installed licenses directory during release assembly.
+
+Phosphor Icons
+  Copyright (c) 2023 Phosphor Icons. License: MIT.
+  https://github.com/phosphor-icons/core
+  The full license is installed as licenses/Phosphor-Icons-LICENSE.txt and
+  embedded alongside the original icon assets in the application.

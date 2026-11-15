@@ -101,9 +101,11 @@ jobs:
           if ([string]::IsNullOrWhiteSpace($env:RVC_UPDATE_PRIVATE_KEY_PEM) -or [string]::IsNullOrWhiteSpace($env:RVC_UPDATE_PUBLIC_KEY_PEM)) {
             throw 'Configure RVC_UPDATE_PRIVATE_KEY_PEM secret and RVC_UPDATE_PUBLIC_KEY_PEM variable before publishing.'
           }
+          $notesFile = 'packaging/release-notes/${{ steps.version.outputs.client }}.txt'
+          $releaseNotes = if (Test-Path -LiteralPath $notesFile) { Get-Content -LiteralPath $notesFile -Raw } else { 'Automated build from commit ${{ github.sha }}' }
           ./packaging/Build-Release.ps1 `
             -Version '${{ steps.version.outputs.client }}' `
-            -ReleaseNotes 'Automated build from commit ${{ github.sha }}' `
+            -ReleaseNotes $releaseNotes `
             -SkipVersionPublish `
             -AllowNoCudaDevice
 
@@ -141,8 +143,12 @@ jobs:
             throw 'The installer checksum is missing from SHA256SUMS.txt.'
           }
           $checksum = ($checksumLine -split '\s+')[0]
+          $notesFile = 'packaging/release-notes/${{ steps.version.outputs.client }}.txt'
+          $releaseNotes = if (Test-Path -LiteralPath $notesFile) { Get-Content -LiteralPath $notesFile -Raw } else { '' }
           $notes = @"
           RVC Studio ${{ steps.version.outputs.client }}
+
+          $releaseNotes
 
           Automated build from commit ${{ github.sha }}.
 
@@ -191,8 +197,9 @@ jobs:
           } else {
             $env:UPDATE_SERVICE_URL
           }
+          $releaseNotes = 'RVC Studio ${{ steps.version.outputs.client }}：音色商城图库布局、七套封面和试听、试听缓存及预加载优化。'
           ./packaging/Sync-ServerVersion.ps1 `
             -Version '${{ steps.version.outputs.client }}' `
-            -ReleaseNotes 'RVC Studio ${{ steps.version.outputs.client }} — GitHub Release with Hugging Face offline installer' `
+            -ReleaseNotes $releaseNotes `
             -UpdateServiceUrl $serviceUrl `
             -DownloadUrl 'https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.tag }}'

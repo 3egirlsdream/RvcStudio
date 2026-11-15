@@ -6,7 +6,8 @@
     "durationSeconds": 2.9013,
     "file": "10000000000000000000000000000001.wav",
     "processing": "RealtimeEngine._prepare_buffers + RealtimeEngine._audio_callback",
-    "source": "user-recording-rvc-output"
+    "source": "user-recording-rvc-output",
+    "publishedRevision": "39d2c3f2fe1141c8b522dddd58445e1d"
   },
   {
     "name": "可棠",
@@ -15,7 +16,8 @@
     "durationSeconds": 2.9013,
     "file": "10000000000000000000000000000002.wav",
     "processing": "RealtimeEngine._prepare_buffers + RealtimeEngine._audio_callback",
-    "source": "user-recording-rvc-output"
+    "source": "user-recording-rvc-output",
+    "publishedRevision": "16ba1f7ef07545ebb8cac547b6540343"
   },
   {
     "name": "绮音",
@@ -24,7 +26,8 @@
     "durationSeconds": 2.9013,
     "file": "10000000000000000000000000000003.wav",
     "processing": "RealtimeEngine._prepare_buffers + RealtimeEngine._audio_callback",
-    "source": "user-recording-rvc-output"
+    "source": "user-recording-rvc-output",
+    "publishedRevision": "009382f56f5a4316a193040f9f9cf6cf"
   },
   {
     "name": "星澜",
@@ -33,7 +36,8 @@
     "durationSeconds": 2.9013,
     "file": "20000000000000000000000000000001.wav",
     "processing": "RealtimeEngine._prepare_buffers + RealtimeEngine._audio_callback",
-    "source": "user-recording-rvc-output"
+    "source": "user-recording-rvc-output",
+    "publishedRevision": "a4a68b38466e4a368ec0625838702ba1"
   },
   {
     "name": "晴栀",
@@ -42,7 +46,8 @@
     "durationSeconds": 2.9013,
     "file": "20000000000000000000000000000002.wav",
     "processing": "RealtimeEngine._prepare_buffers + RealtimeEngine._audio_callback",
-    "source": "user-recording-rvc-output"
+    "source": "user-recording-rvc-output",
+    "publishedRevision": "d8509cc6fd8541dc9bc4ebe61a1588c2"
   },
   {
     "name": "知夏",
@@ -51,7 +56,8 @@
     "durationSeconds": 2.9013,
     "file": "20000000000000000000000000000003.wav",
     "processing": "RealtimeEngine._prepare_buffers + RealtimeEngine._audio_callback",
-    "source": "user-recording-rvc-output"
+    "source": "user-recording-rvc-output",
+    "publishedRevision": "58dbe6b817a242ecbedb5a7316792e2c"
   },
   {
     "name": "悠汐",
@@ -60,6 +66,7 @@
     "durationSeconds": 2.9013,
     "file": "10000000000000000000000000000004.wav",
     "processing": "RealtimeEngine._prepare_buffers + RealtimeEngine._audio_callback",
-    "source": "user-recording-rvc-output"
+    "source": "user-recording-rvc-output",
+    "publishedRevision": "744afd552f6c4aa299eb6d5aad0f7427"
   }
 ]
