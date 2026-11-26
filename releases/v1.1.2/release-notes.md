@@ -11,8 +11,6 @@ RVC Studio 1.1.2
 新用户或更早版本请下载完整离线安装包。
 
 
-Automated build from commit bf005b490e86ad035fedddafa2347798807f8db5.
-
 [下载单文件完整离线安装包 RVC-Studio-NVIDIA-Setup.exe](https://huggingface.co/xulezuo/RvcStudio/resolve/main/releases/v1.1.2/RVC-Studio-NVIDIA-Setup.exe?download=true)
 
 SHA-256: `1445AE19C6A242B7DE633E5B731ED76BC5E3FE7BC8A1417E7557A4FCED2F2771`
