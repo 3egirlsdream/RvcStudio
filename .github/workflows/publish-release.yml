@@ -1,0 +1,53 @@
+name: Publish requested client release
+
+on:
+  push:
+    branches: [release-requests]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rvc-studio-public-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'push' && github.sha || 'release-requests' }}
+      - name: Publish release metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -f releases/requested-version.txt ]]; then
+            echo "No release request was committed."
+            exit 0
+          fi
+          tag=$(cat releases/requested-version.txt)
+          if [[ ! "$tag" =~ ^v[0-9]+(\.[0-9]+){1,3}$ ]]; then
+            echo "Invalid release tag: $tag"
+            exit 1
+          fi
+
+          folder="releases/$tag"
+          assets=("$folder/README.txt" "$folder/SHA256SUMS.txt")
+          if [[ ! -s "$folder/release-notes.md" || ! -s "${assets[0]}" || ! -s "${assets[1]}" ]]; then
+            echo "Release notes or artifacts are missing for $tag"
+            exit 1
+          fi
+
+          if status=$(gh release view "$tag" --json isDraft --jq .isDraft 2>/dev/null); then
+            if [[ "$status" == false ]]; then
+              exit 0
+            fi
+          else
+            gh release create "$tag" --target main --title "RVC Studio ${tag#v}" --notes-file "$folder/release-notes.md" --draft
+          fi
+          gh release upload "$tag" "${assets[@]}" --clobber
+          gh release edit "$tag" --draft=false --latest
